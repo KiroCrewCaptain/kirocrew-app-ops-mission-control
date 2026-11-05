@@ -1,7 +1,7 @@
 {
   "app": "ops-mission-control",
-  "captured_at": "2026-11-05T01:07:51Z",
-  "app_commit": "9d8246621fa0564abe20058bb7784146a3712829",
+  "captured_at": "2026-11-05T02:25:59Z",
+  "app_commit": "1ebbdd27198e7d8bc6369f976f8e8857aa248382",
   "kirocrew_commit": "55439d87700799a8789a341da65e2e1c355e26fc",
   "kirocrew_tree_dirty": true,
   "gateway": "isolated temporary home, approval=reads; a freshly seeded gateway for the stub screenshots, one for the live ones and one for the walkthrough",
@@ -68,10 +68,10 @@
       "file": "use-case-ask-light.png",
       "name": "use-case-ask",
       "theme": "light",
-      "bytes": 273446,
+      "bytes": 270413,
       "width": 1600,
       "height": 1000,
-      "alt": "The live investigation chat inside INV-1 after a question about the DLQ: the agent's reply (from a live model) says to check first whether the first message in sqs/orders-dlq is malformed and keeps coming back; if yes, move it to orders-quarantine, redrive the DLQ to orders-events and watch the depth fall; that the incident is in observe mode so you need to approve the move first; and if no, that this is something new and the DLQ should not be redriven"
+      "alt": "The live investigation chat inside INV-1: the typed question \"Is this the poison-message problem we saw before? What should I check first, and what would you do?\" and, below it, the agent's reply (from a live model) after two tool calls: likely yes, INV-1 matches a verified ledger entry with the same fingerprint; check first by reading the head message in orders-dlq to see whether it is a broken order event; if so, move it to orders-quarantine, then redrive the DLQ to orders-events"
     },
     {
       "file": "use-case-handover-light.png",
@@ -94,15 +94,15 @@
   ],
   "walkthrough": {
     "shortened_waits_s": [
-      13.5
+      10.6
     ],
     "mp4": {
       "file": "walkthrough.mp4",
-      "bytes": 724240
+      "bytes": 702538
     },
     "gif": {
       "file": "walkthrough.gif",
-      "bytes": 5012823,
+      "bytes": 4493274,
       "width": 960,
       "fps": 10
     },

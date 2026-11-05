@@ -255,7 +255,7 @@
         },
         {
           "type": "textarea",
-          "value": "Is this the poison-message problem we saw before? What should I check first, and what would you do? Answer from the incident and the ledger only, in under 120 words.",
+          "value": "Is this the poison-message problem we saw before? What should I check first, and what would you do? Answer from the incident and the ledger only, in under 50 words.",
           "delay_ms": 2
         },
         {
@@ -270,7 +270,7 @@
           "wait_ms": 1500
         },
         {
-          "scroll": "[data-testid='turn-stats']"
+          "scroll": "text=Is this the poison-message problem"
         },
         {
           "mouse_park": [
@@ -279,7 +279,7 @@
           ]
         }
       ],
-      "alt": "The live investigation chat inside INV-1 after a question about the DLQ: the agent's reply (from a live model) says to check first whether the first message in sqs/orders-dlq is malformed and keeps coming back; if yes, move it to orders-quarantine, redrive the DLQ to orders-events and watch the depth fall; that the incident is in observe mode so you need to approve the move first; and if no, that this is something new and the DLQ should not be redriven"
+      "alt": "The live investigation chat inside INV-1: the typed question \"Is this the poison-message problem we saw before? What should I check first, and what would you do?\" and, below it, the agent's reply (from a live model) after two tool calls: likely yes, INV-1 matches a verified ledger entry with the same fingerprint; check first by reading the head message in orders-dlq to see whether it is a broken order event; if so, move it to orders-quarantine, then redrive the DLQ to orders-events"
     },
     {
       "name": "signals",
@@ -387,17 +387,24 @@
         "scroll": "textarea"
       },
       {
+        "caption": "Ask the investigation directly, from the incident",
+        "above": "textarea",
+        "over": "textarea"
+      },
+      {
         "type": "textarea",
-        "value": "Is this the poison-message problem we saw before? What should I check first, and what would you do? Answer from the incident and the ledger only, in under 120 words.",
+        "value": "Is this the poison-message problem we saw before? What should I check first, and what would you do? Answer from the incident and the ledger only, in under 50 words.",
         "delay_ms": 12
+      },
+      {
+        "wait_ms": 1200
+      },
+      {
+        "caption": ""
       },
       {
         "press": "textarea",
         "key": "Enter"
-      },
-      {
-        "caption": "Ask the investigation directly, from the incident",
-        "position": "top"
       },
       {
         "wait_for": "[data-testid='turn-stats']",
@@ -405,13 +412,23 @@
         "cut": true
       },
       {
-        "caption": ""
+        "scroll": "text=Is this the poison-message problem"
       },
       {
         "wait_ms": 5000
       },
       {
         "click": "role=radio[name='Signals']"
+      },
+      {
+        "caption": "Signals: what each source returned, including what a person parked",
+        "position": "bottom"
+      },
+      {
+        "wait_ms": 2500
+      },
+      {
+        "caption": ""
       },
       {
         "click": "role=button[name='Poll now']"
@@ -421,14 +438,7 @@
         "timeout_ms": 20000
       },
       {
-        "caption": "Signals: what each source returned, including what a person parked",
-        "position": "top"
-      },
-      {
         "wait_ms": 3500
-      },
-      {
-        "caption": ""
       },
       {
         "click": "role=radio[name='Handover']"

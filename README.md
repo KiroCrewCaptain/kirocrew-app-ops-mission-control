@@ -54,10 +54,10 @@ before proposing it.
 Each incident has its own investigation chat, shown under it on the board. You
 type a question there, such as "is this the poison-message problem we saw
 before, and what would you do?", and the agent answers in place. Here it says
-what to check first, the steps to take if the check confirms it, and that the
-incident is in **Observe**, so you approve the move before anything changes.
+the incident likely matches the verified pattern in the ledger, what to check
+first, and the steps to take if the check confirms it.
 
-![The live investigation chat inside INV-1 after a question about the DLQ: the agent's reply (from a live model) says to check first whether the first message in sqs/orders-dlq is malformed and keeps coming back; if yes, move it to orders-quarantine, redrive the DLQ to orders-events and watch the depth fall; that the incident is in observe mode so you need to approve the move first; and if no, that this is something new and the DLQ should not be redriven](docs/media/use-case-ask-light.png)
+![The live investigation chat inside INV-1: the typed question "Is this the poison-message problem we saw before? What should I check first, and what would you do?" and, below it, the agent's reply (from a live model) after two tool calls: likely yes, INV-1 matches a verified ledger entry with the same fingerprint; check first by reading the head message in orders-dlq to see whether it is a broken order event; if so, move it to orders-quarantine, then redrive the DLQ to orders-events](docs/media/use-case-ask-light.png)
 
 ### 3. Tell "everything is quiet" apart from "someone silenced it"
 
