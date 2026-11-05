@@ -53,11 +53,11 @@ before proposing it.
 
 Each incident has its own investigation chat, shown under it on the board. You
 type a question there, such as "is this the poison-message problem we saw
-before, and what would you do?", and the agent answers in place. Here it lists
-the steps it would take, and says that because the app is in **Observe** it will
-only propose them: you make the move.
+before, and what would you do?", and the agent answers in place. Here it says
+what to check first, the steps to take if the check confirms it, and that the
+incident is in **Observe**, so you approve the move before anything changes.
 
-![The live investigation chat inside INV-1 after a question about the DLQ: the agent's reply (from a live model) lists what it would do if the head message is the bad one, move that message to orders-quarantine, send the rest of the DLQ back to orders-events and watch the queue size go down, says the incident is in observe mode so it would only propose this and you make the move, and warns that sending messages back reruns real orders](docs/media/use-case-ask-light.png)
+![The live investigation chat inside INV-1 after a question about the DLQ: the agent's reply (from a live model) says to check first whether the first message in sqs/orders-dlq is malformed and keeps coming back; if yes, move it to orders-quarantine, redrive the DLQ to orders-events and watch the depth fall; that the incident is in observe mode so you need to approve the move first; and if no, that this is something new and the DLQ should not be redriven](docs/media/use-case-ask-light.png)
 
 ### 3. Tell "everything is quiet" apart from "someone silenced it"
 

@@ -1,9 +1,9 @@
 {
   "app": "ops-mission-control",
-  "captured_at": "2026-11-05T00:52:01Z",
-  "app_commit": "HEAD",
-  "kirocrew_commit": null,
-  "kirocrew_tree_dirty": null,
+  "captured_at": "2026-11-05T01:07:51Z",
+  "app_commit": "9d8246621fa0564abe20058bb7784146a3712829",
+  "kirocrew_commit": "55439d87700799a8789a341da65e2e1c355e26fc",
+  "kirocrew_tree_dirty": true,
   "gateway": "isolated temporary home, approval=reads; a freshly seeded gateway for the stub screenshots, one for the live ones and one for the walkthrough",
   "data": "fictional, seeded through the app's HTTP API (capture/scenes.json)",
   "agent_backend": {
@@ -68,10 +68,10 @@
       "file": "use-case-ask-light.png",
       "name": "use-case-ask",
       "theme": "light",
-      "bytes": 260958,
+      "bytes": 273446,
       "width": 1600,
       "height": 1000,
-      "alt": "The live investigation chat inside INV-1 after a question about the DLQ: the agent's reply (from a live model) says to check first the head message in sqs/orders-dlq, lists moving it to orders-quarantine, redriving orders-dlq to orders-events and watching the depth drop, and notes that INV-1 is in observe mode so it will not touch the queues until told to go ahead"
+      "alt": "The live investigation chat inside INV-1 after a question about the DLQ: the agent's reply (from a live model) says to check first whether the first message in sqs/orders-dlq is malformed and keeps coming back; if yes, move it to orders-quarantine, redrive the DLQ to orders-events and watch the depth fall; that the incident is in observe mode so you need to approve the move first; and if no, that this is something new and the DLQ should not be redriven"
     },
     {
       "file": "use-case-handover-light.png",
@@ -94,15 +94,15 @@
   ],
   "walkthrough": {
     "shortened_waits_s": [
-      14.5
+      13.5
     ],
     "mp4": {
       "file": "walkthrough.mp4",
-      "bytes": 719962
+      "bytes": 724240
     },
     "gif": {
       "file": "walkthrough.gif",
-      "bytes": 4635728,
+      "bytes": 5012823,
       "width": 960,
       "fps": 10
     },
