@@ -358,15 +358,12 @@ class TestTheSlotKeyIsDerivedNotTrusted(unittest.TestCase):
 
         # Pinned against the frontend's own expression rather than restating it: if
         # `incidentSlotKey` changes shape, this fails instead of drifting silently.
-        web_src = (
-            _Path(routes.__file__).resolve().parents[5]
-            / "website/src/apps/ops-mission-control/IncidentChat.tsx"
+        web_src = _Path(routes.__file__).resolve().parents[1] / "ui/src/IncidentChat.tsx"
+        self.assertTrue(web_src.is_file(), web_src)
+        self.assertIn(
+            "`ops-mission-control-${incidentId}`",
+            web_src.read_text(encoding="utf-8"),
         )
-        if web_src.is_file():
-            self.assertIn(
-                "`ops-mission-control-${incidentId}`",
-                web_src.read_text(encoding="utf-8"),
-            )
 
     def test_a_wrong_stored_key_is_ignored(self):
         """Structural: no resolution path may read `slot_key` off the record.

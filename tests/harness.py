@@ -13,7 +13,6 @@ dependency) and the host's own owner gate.
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -55,15 +54,19 @@ class FakeCtx:
 
     @property
     def data_dir(self) -> Path:
-        """``<KIROCREW_HOME>/apps/ops-mission-control/data``, read on every access.
+        """The host's ``app_dir(<name>) / "data"``, read on every access.
 
-        The built-in's suite moves ``KIROCREW_HOME`` per test (often in ``setUp``),
-        and the gateway's ``ctx.data_dir`` is that same directory, so the context
-        follows the variable rather than freezing the first value.
+        Computed exactly as the gateway computes ``ctx.data_dir``
+        (``apps/hooks_integration.py``), so it is the same spelling the host's own
+        helpers produce (a resolved data home on macOS, where the temp directory
+        sits behind ``/var`` -> ``/private/var``). Read per access because the
+        built-in's suite moves ``KIROCREW_HOME`` per test, often in ``setUp``.
         """
         if self.fixed_data_dir is not None:
             return self.fixed_data_dir
-        return Path(os.environ["KIROCREW_HOME"]) / "apps" / APP_NAME / "data"
+        from kiro_crew.apps.manager import app_dir
+
+        return Path(app_dir(self.name)) / "data"
 
 
 def make_ctx(**overrides: Any) -> FakeCtx:
