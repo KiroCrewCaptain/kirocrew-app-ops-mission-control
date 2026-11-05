@@ -1,0 +1,456 @@
+{
+  "app": "ops-mission-control",
+  "fixture": "minimal",
+  "locale": "en-US",
+  "timezone": "UTC",
+  "init_storage": {
+    "mc-nav": "0"
+  },
+  "ready": "text=Mission Control",
+  "setup": [
+    {
+      "name": "install this repository",
+      "method": "POST",
+      "path": "/api/apps/install",
+      "body": {
+        "source": "{{app_root}}"
+      }
+    },
+    {
+      "name": "trust it (it runs its own code)",
+      "method": "POST",
+      "path": "/api/security/trusted-apps/ops-mission-control"
+    },
+    {
+      "name": "turn the app on",
+      "method": "POST",
+      "path": "/api/apps/ops-mission-control/enable"
+    },
+    {
+      "name": "retire the host's one-time startup intro",
+      "method": "POST",
+      "path": "/api/feature-videos/feedback",
+      "body": {
+        "id": "crewmates",
+        "status": "dismissed"
+      },
+      "optional": true
+    },
+    {
+      "name": "the webhook source's signing secret (write-only)",
+      "method": "PUT",
+      "path": "/api/apps/ops-mission-control/providers/webhook/secret",
+      "body": {
+        "field": "signing_secret",
+        "value": "larkspur-demo-signing-secret"
+      }
+    },
+    {
+      "name": "turn the webhook source on",
+      "method": "PUT",
+      "path": "/api/apps/ops-mission-control/providers/webhook/config",
+      "body": {
+        "enabled": true
+      }
+    },
+    {
+      "name": "a fix the team already learned",
+      "method": "POST",
+      "path": "/api/apps/ops-mission-control/ledger",
+      "body": {
+        "pattern": "orders-dlq fills when a malformed order event poisons the consumer; every retry lands the same message back in the DLQ",
+        "fix": "Read the head message, move it to the orders-quarantine queue, then redrive the DLQ to orders-events",
+        "fingerprints": [
+          "1ddcd40afda6797f"
+        ],
+        "confidence": "high",
+        "trust": "verified",
+        "source": "human"
+      }
+    },
+    {
+      "name": "signed webhook delivery: orders-dlq-depth",
+      "method": "POST",
+      "path": "/api/apps/ops-mission-control/webhook",
+      "raw_body": "{\"id\":\"orders-dlq-depth\",\"title\":\"orders-dlq depth above 50 messages\",\"severity\":\"critical\",\"resource\":\"sqs/orders-dlq\",\"labels\":{\"service\":\"orders\",\"team\":\"fulfilment\"},\"url\":\"https://status.larkspur-bikes.example/alerts/orders-dlq-depth\"}",
+      "headers": {
+        "X-OMC-Signature": "3f5e893068c093e372a281f90d8568fbce0f803384a75328a35636c2a00e2737"
+      },
+      "expect": [
+        200,
+        202
+      ]
+    },
+    {
+      "name": "signed webhook delivery: checkout-p99",
+      "method": "POST",
+      "path": "/api/apps/ops-mission-control/webhook",
+      "raw_body": "{\"id\":\"checkout-p99\",\"title\":\"checkout-api p99 latency above 2s\",\"severity\":\"critical\",\"resource\":\"checkout-api\",\"labels\":{\"service\":\"checkout\",\"team\":\"payments\"},\"url\":\"https://status.larkspur-bikes.example/alerts/checkout-p99\"}",
+      "headers": {
+        "X-OMC-Signature": "4143d6fd3ca6a2cc25cde792178aad16a26617ef67c779b7cbb671e835cb004e"
+      },
+      "expect": [
+        200,
+        202
+      ]
+    },
+    {
+      "name": "signed webhook delivery: inventory-sync-failures",
+      "method": "POST",
+      "path": "/api/apps/ops-mission-control/webhook",
+      "raw_body": "{\"id\":\"inventory-sync-failures\",\"title\":\"inventory-sync job failed 3 runs in a row\",\"severity\":\"warning\",\"resource\":\"jobs/inventory-sync\",\"labels\":{\"service\":\"inventory\",\"team\":\"fulfilment\"}}",
+      "headers": {
+        "X-OMC-Signature": "60b65fb5eb37f9e1cea868a707240ac5670952c72f027eab14107c3a39e7c670"
+      },
+      "expect": [
+        200,
+        202
+      ]
+    },
+    {
+      "name": "signed webhook delivery: backup-volume",
+      "method": "POST",
+      "path": "/api/apps/ops-mission-control/webhook",
+      "raw_body": "{\"id\":\"backup-volume\",\"title\":\"backup volume 85% full\",\"severity\":\"warning\",\"resource\":\"backup-01\",\"state\":\"suppressed\",\"suppressed_by\":\"Priya Raman\",\"suppressed_reason\":\"Silenced for the planned storage migration tonight\"}",
+      "headers": {
+        "X-OMC-Signature": "d6365c45cf51cc468a9517c207fcdc17a2184e21a989f92e32ad30fafe22312a"
+      },
+      "expect": [
+        200,
+        202
+      ]
+    },
+    {
+      "name": "claim what is firing",
+      "method": "POST",
+      "path": "/api/apps/ops-mission-control/dispatch",
+      "save": {
+        "first": "claimed.0.incident.incident_id",
+        "second": "claimed.1.incident.incident_id",
+        "third": "claimed.2.incident.incident_id"
+      }
+    },
+    {
+      "name": "the investigation chat for {{first}}",
+      "method": "POST",
+      "path": "/api/chat/slots",
+      "body": {
+        "name": "ops-mission-control-{{first}}",
+        "title": "{{first}} - orders-dlq depth above 50 messages"
+      },
+      "expect": [
+        200,
+        201
+      ]
+    },
+    {
+      "name": "the investigation chat for {{second}}",
+      "method": "POST",
+      "path": "/api/chat/slots",
+      "body": {
+        "name": "ops-mission-control-{{second}}",
+        "title": "{{second}} - checkout-api p99 latency above 2s"
+      },
+      "expect": [
+        200,
+        201
+      ]
+    },
+    {
+      "name": "the investigation chat for {{third}}",
+      "method": "POST",
+      "path": "/api/chat/slots",
+      "body": {
+        "name": "ops-mission-control-{{third}}",
+        "title": "{{third}} - inventory-sync job failed 3 runs in a row"
+      },
+      "expect": [
+        200,
+        201
+      ]
+    },
+    {
+      "name": "the DLQ investigation starts",
+      "method": "POST",
+      "path": "/api/apps/ops-mission-control/incident/transition",
+      "body": {
+        "id": "{{first}}",
+        "status": "investigating",
+        "slot_key": "ops-mission-control-{{first}}"
+      }
+    },
+    {
+      "name": "the checkout investigation starts",
+      "method": "POST",
+      "path": "/api/apps/ops-mission-control/incident/transition",
+      "body": {
+        "id": "{{second}}",
+        "status": "investigating",
+        "slot_key": "ops-mission-control-{{second}}"
+      }
+    },
+    {
+      "name": "and closes with its diagnosis and resolution",
+      "method": "POST",
+      "path": "/api/apps/ops-mission-control/incident/transition",
+      "body": {
+        "id": "{{second}}",
+        "status": "resolved",
+        "diagnosis": "p99 rose from 380 ms to 2.4 s right after the 14:05 deploy of checkout-api v2.31, while the error rate stayed flat: the new build added a synchronous fraud-score call to every checkout.",
+        "resolution": "Rolled back to v2.30 at 14:32; p99 back under 400 ms within five minutes. The fraud-score call moves behind the async queue before v2.31 ships again."
+      }
+    },
+    {
+      "name": "the inventory investigation starts",
+      "method": "POST",
+      "path": "/api/apps/ops-mission-control/incident/transition",
+      "body": {
+        "id": "{{third}}",
+        "status": "investigating",
+        "slot_key": "ops-mission-control-{{third}}"
+      }
+    }
+  ],
+  "screenshots": [
+    {
+      "name": "hero",
+      "path": "/apps/ops-mission-control",
+      "alt": "The Mission Control board: two active incidents being investigated, INV-1 orders-dlq depth above 50 messages (critical) and INV-3 inventory-sync job failed 3 runs in a row (warning), INV-2 checkout-api p99 latency above 2s listed under Closed — postmortems as resolved, and a knowledge ledger holding one verified, high-confidence pattern about a poisoned orders DLQ"
+    },
+    {
+      "name": "use-case-known-fix",
+      "path": "/apps/ops-mission-control",
+      "themes": [
+        "light"
+      ],
+      "steps": [
+        {
+          "click": "text=orders-dlq depth above 50 messages"
+        },
+        {
+          "wait_ms": 1200
+        },
+        {
+          "mouse_park": [
+            1400,
+            880
+          ]
+        }
+      ],
+      "alt": "INV-1 orders-dlq depth above 50 messages opened on the board: source webhook, resource sqs/orders-dlq, mode Observe, one known pattern matched, and the remembered fix shown in full (read the head message, move it to the orders-quarantine queue, then redrive the DLQ to orders-events) marked verified, high confidence, used once, hypothesis — agent must confirm first; below it the live investigation chat for INV-1"
+    },
+    {
+      "name": "use-case-ask",
+      "path": "/apps/ops-mission-control",
+      "themes": [
+        "light"
+      ],
+      "live": true,
+      "steps": [
+        {
+          "click": "text=orders-dlq depth above 50 messages"
+        },
+        {
+          "wait_for": "textarea"
+        },
+        {
+          "type": "textarea",
+          "value": "Is this the poison-message problem we saw before? What should I check first, and what would you do? Answer from the incident and the ledger only, in under 120 words.",
+          "delay_ms": 2
+        },
+        {
+          "press": "textarea",
+          "key": "Enter"
+        },
+        {
+          "wait_for": "[data-testid='turn-stats']",
+          "timeout_ms": 300000
+        },
+        {
+          "wait_ms": 1500
+        },
+        {
+          "scroll": "[data-testid='turn-stats']"
+        },
+        {
+          "mouse_park": [
+            1400,
+            880
+          ]
+        }
+      ],
+      "alt": "The live investigation chat inside INV-1 after a question about the DLQ: the agent's reply (from a live model) lists what it would do if the head message is the bad one, move that message to orders-quarantine, send the rest of the DLQ back to orders-events and watch the queue size go down, says the incident is in observe mode so it would only propose this and you make the move, and warns that sending messages back reruns real orders"
+    },
+    {
+      "name": "signals",
+      "path": "/apps/ops-mission-control",
+      "themes": [
+        "light"
+      ],
+      "steps": [
+        {
+          "click": "role=radio[name='Signals']"
+        },
+        {
+          "click": "role=button[name='Poll now']"
+        },
+        {
+          "wait_for": "text=Parked at the provider",
+          "timeout_ms": 20000
+        },
+        {
+          "wait_ms": 1200
+        },
+        {
+          "mouse_park": [
+            1400,
+            880
+          ]
+        }
+      ],
+      "alt": "The Signals tab after Poll now: every configured source answered, the inbound webhook shows ok with 0 firing and 1 parked, and under Parked at the provider the warning backup volume 85% full, silenced by Priya Raman"
+    },
+    {
+      "name": "use-case-handover",
+      "path": "/apps/ops-mission-control",
+      "themes": [
+        "light"
+      ],
+      "steps": [
+        {
+          "click": "role=radio[name='Handover']"
+        },
+        {
+          "wait_ms": 1500
+        },
+        {
+          "mouse_park": [
+            1400,
+            880
+          ]
+        }
+      ],
+      "alt": "The Handover tab: a headline saying nothing is waiting on you, two incidents in progress and autonomy is observe so nothing will be written to any provider, with Refresh and Copy as text buttons, an empty What keeps happening card and a Coverage card naming the inbound webhook as watched and the unconfigured sources as blind spots"
+    },
+    {
+      "name": "settings",
+      "path": "/apps/ops-mission-control",
+      "themes": [
+        "light"
+      ],
+      "steps": [
+        {
+          "click": "role=radio[name='Settings']"
+        },
+        {
+          "wait_ms": 1500
+        },
+        {
+          "mouse_park": [
+            1400,
+            880
+          ]
+        }
+      ],
+      "alt": "The Settings tab: Autonomy set to Observe (reads and investigates, writes nothing), an empty Act rules section with a source picker and a resource pattern field, and the provider list starting with the on-call rotation and AWS CloudWatch, not set up"
+    }
+  ],
+  "walkthrough": {
+    "name": "walkthrough",
+    "path": "/apps/ops-mission-control",
+    "theme": "light",
+    "live": true,
+    "alt": "A walkthrough of Mission Control: the board of claimed incidents, INV-1 opening with the fix the team already learned, a question typed into its live investigation chat and the agent's answer arriving, the Signals tab polled and showing a parked signal with who silenced it, and the Handover tab",
+    "tail_ms": 4000,
+    "steps": [
+      {
+        "caption": "Mission Control: what is firing, claimed and being worked",
+        "position": "bottom"
+      },
+      {
+        "wait_ms": 2500
+      },
+      {
+        "click": "text=orders-dlq depth above 50 messages"
+      },
+      {
+        "caption": "A repeat failure arrives with the fix the team already learned",
+        "position": "bottom"
+      },
+      {
+        "wait_ms": 3500
+      },
+      {
+        "caption": ""
+      },
+      {
+        "scroll": "textarea"
+      },
+      {
+        "type": "textarea",
+        "value": "Is this the poison-message problem we saw before? What should I check first, and what would you do? Answer from the incident and the ledger only, in under 120 words.",
+        "delay_ms": 12
+      },
+      {
+        "press": "textarea",
+        "key": "Enter"
+      },
+      {
+        "caption": "Ask the investigation directly, from the incident",
+        "position": "top"
+      },
+      {
+        "wait_for": "[data-testid='turn-stats']",
+        "timeout_ms": 300000,
+        "cut": true
+      },
+      {
+        "caption": ""
+      },
+      {
+        "wait_ms": 5000
+      },
+      {
+        "click": "role=radio[name='Signals']"
+      },
+      {
+        "click": "role=button[name='Poll now']"
+      },
+      {
+        "wait_for": "text=Parked at the provider",
+        "timeout_ms": 20000
+      },
+      {
+        "caption": "Signals: what each source returned, including what a person parked",
+        "position": "top"
+      },
+      {
+        "wait_ms": 3500
+      },
+      {
+        "caption": ""
+      },
+      {
+        "click": "role=radio[name='Handover']"
+      },
+      {
+        "caption": "Handover: what the next responder needs to know",
+        "position": "bottom"
+      },
+      {
+        "wait_ms": 3500
+      }
+    ]
+  },
+  "provenance_note": "The isolated gateway served this repository's own copy of the app: capture.py's setup installed it from this checkout (POST /api/apps/install), trusted it and enabled it, so every picture shows its committed bundle (ui/dist/index.mjs) and backend. Kiro Crew still ships a built-in ops-mission-control and refuses a second install under the same name, so the Kiro Crew tree the capture ran on is the pinned commit with only the built-in copy removed (src/kiro_crew/apps/builtins/ops_mission_control and its BUILTIN_NAMES row).",
+  "data_notes": [
+    "Larkspur Bikes, its services, queues and status page (status.larkspur-bikes.example) and Priya Raman are invented for this README.",
+    "The four signals arrived through the app's own signed webhook (POST /webhook with an HMAC signature over a demo signing secret); the incidents were claimed by POST /dispatch, the remembered fix was written through POST /ledger, and the transitions through POST /incident/transition.",
+    "The investigation chat slots were created the way the dispatch SOP creates them (POST /api/chat/slots), and the answer in the INV-1 chat came from a live model, so its wording differs from run to run.",
+    "Incident ages (\"36s\") are real: the board was photographed seconds after seeding."
+  ],
+  "forbid_text": [
+    "Couldn't load this session's messages",
+    "Something went wrong"
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "app": "ops-mission-control",
+  "captured_at": "2026-11-05T00:52:01Z",
+  "app_commit": "HEAD",
+  "kirocrew_commit": null,
+  "kirocrew_tree_dirty": null,
+  "gateway": "isolated temporary home, approval=reads; a freshly seeded gateway for the stub screenshots, one for the live ones and one for the walkthrough",
+  "data": "fictional, seeded through the app's HTTP API (capture/scenes.json)",
+  "agent_backend": {
+    "live": [
+      "use-case-ask",
+      "walkthrough"
+    ],
+    "live_model": "the operator's own installed, signed-in kiro-cli over ACP with model \"auto\"; the replies on screen are that model's and vary from run to run",
+    "stub": "Kiro Crew's offline stub ACP backend (capture/stub_backend.py) for every other scene; no chat reply is shown from it",
+    "credit_reading": "the browser answers the top bar's credit readout (/api/sessions/usage) with \"no reading\", so no account balance or email can be shown"
+  },
+  "note": "The isolated gateway served this repository's own copy of the app: capture.py's setup installed it from this checkout (POST /api/apps/install), trusted it and enabled it, so every picture shows its committed bundle (ui/dist/index.mjs) and backend. Kiro Crew still ships a built-in ops-mission-control and refuses a second install under the same name, so the Kiro Crew tree the capture ran on is the pinned commit with only the built-in copy removed (src/kiro_crew/apps/builtins/ops_mission_control and its BUILTIN_NAMES row).",
+  "data_notes": [
+    "Larkspur Bikes, its services, queues and status page (status.larkspur-bikes.example) and Priya Raman are invented for this README.",
+    "The four signals arrived through the app's own signed webhook (POST /webhook with an HMAC signature over a demo signing secret); the incidents were claimed by POST /dispatch, the remembered fix was written through POST /ledger, and the transitions through POST /incident/transition.",
+    "The investigation chat slots were created the way the dispatch SOP creates them (POST /api/chat/slots), and the answer in the INV-1 chat came from a live model, so its wording differs from run to run.",
+    "Incident ages (\"36s\") are real: the board was photographed seconds after seeding."
+  ],
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "device_scale": 2,
+  "screenshots": [
+    {
+      "file": "hero-dark.png",
+      "name": "hero",
+      "theme": "dark",
+      "bytes": 258629,
+      "width": 1600,
+      "height": 1000,
+      "alt": "The Mission Control board: two active incidents being investigated, INV-1 orders-dlq depth above 50 messages (critical) and INV-3 inventory-sync job failed 3 runs in a row (warning), INV-2 checkout-api p99 latency above 2s listed under Closed \u2014 postmortems as resolved, and a knowledge ledger holding one verified, high-confidence pattern about a poisoned orders DLQ"
+    },
+    {
+      "file": "hero-light.png",
+      "name": "hero",
+      "theme": "light",
+      "bytes": 243406,
+      "width": 1600,
+      "height": 1000,
+      "alt": "The Mission Control board: two active incidents being investigated, INV-1 orders-dlq depth above 50 messages (critical) and INV-3 inventory-sync job failed 3 runs in a row (warning), INV-2 checkout-api p99 latency above 2s listed under Closed \u2014 postmortems as resolved, and a knowledge ledger holding one verified, high-confidence pattern about a poisoned orders DLQ"
+    },
+    {
+      "file": "settings-light.png",
+      "name": "settings",
+      "theme": "light",
+      "bytes": 277507,
+      "width": 1600,
+      "height": 1000,
+      "alt": "The Settings tab: Autonomy set to Observe (reads and investigates, writes nothing), an empty Act rules section with a source picker and a resource pattern field, and the provider list starting with the on-call rotation and AWS CloudWatch, not set up"
+    },
+    {
+      "file": "signals-light.png",
+      "name": "signals",
+      "theme": "light",
+      "bytes": 288454,
+      "width": 1600,
+      "height": 1000,
+      "alt": "The Signals tab after Poll now: every configured source answered, the inbound webhook shows ok with 0 firing and 1 parked, and under Parked at the provider the warning backup volume 85% full, silenced by Priya Raman"
+    },
+    {
+      "file": "use-case-ask-light.png",
+      "name": "use-case-ask",
+      "theme": "light",
+      "bytes": 260958,
+      "width": 1600,
+      "height": 1000,
+      "alt": "The live investigation chat inside INV-1 after a question about the DLQ: the agent's reply (from a live model) says to check first the head message in sqs/orders-dlq, lists moving it to orders-quarantine, redriving orders-dlq to orders-events and watching the depth drop, and notes that INV-1 is in observe mode so it will not touch the queues until told to go ahead"
+    },
+    {
+      "file": "use-case-handover-light.png",
+      "name": "use-case-handover",
+      "theme": "light",
+      "bytes": 200397,
+      "width": 1600,
+      "height": 1000,
+      "alt": "The Handover tab: a headline saying nothing is waiting on you, two incidents in progress and autonomy is observe so nothing will be written to any provider, with Refresh and Copy as text buttons, an empty What keeps happening card and a Coverage card naming the inbound webhook as watched and the unconfigured sources as blind spots"
+    },
+    {
+      "file": "use-case-known-fix-light.png",
+      "name": "use-case-known-fix",
+      "theme": "light",
+      "bytes": 280656,
+      "width": 1600,
+      "height": 1000,
+      "alt": "INV-1 orders-dlq depth above 50 messages opened on the board: source webhook, resource sqs/orders-dlq, mode Observe, one known pattern matched, and the remembered fix shown in full (read the head message, move it to the orders-quarantine queue, then redrive the DLQ to orders-events) marked verified, high confidence, used once, hypothesis \u2014 agent must confirm first; below it the live investigation chat for INV-1"
+    }
+  ],
+  "walkthrough": {
+    "shortened_waits_s": [
+      14.5
+    ],
+    "mp4": {
+      "file": "walkthrough.mp4",
+      "bytes": 719962
+    },
+    "gif": {
+      "file": "walkthrough.gif",
+      "bytes": 4635728,
+      "width": 960,
+      "fps": 10
+    },
+    "theme": "light",
+    "alt": "A walkthrough of Mission Control: the board of claimed incidents, INV-1 opening with the fix the team already learned, a question typed into its live investigation chat and the agent's answer arriving, the Signals tab polled and showing a parked signal with who silenced it, and the Handover tab"
+  }
+}

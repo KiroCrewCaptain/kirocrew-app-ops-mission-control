@@ -1,0 +1,293 @@
+{
+  "name": "ops-mission-control",
+  "version": "0.1.0",
+  "displayName": "Ops Mission Control",
+  "description": "An autonomous ops first responder. Watches your alarms, pages, and monitors; claims what fires; investigates it with real context; and proposes a fix — keeping everything it learns in a local ledger so the second occurrence is faster than the first.",
+  "author": "kirocrew",
+  "license": "Apache-2.0",
+  "minKiroCrewVersion": "0.13.0",
+  "tags": [
+    "ops",
+    "oncall",
+    "incidents",
+    "aws",
+    "monitoring",
+    "sre"
+  ],
+  "highlights": [
+    "Claims a firing alarm within one heartbeat and investigates before anyone has to look",
+    "Knowledge ledger with confidence and trust levels — a repeat failure resolves from what you already know",
+    "Live board in the dashboard and as replyable Slack threads, so the channel is the dashboard",
+    "Connects AWS CloudWatch, PagerDuty, Datadog, incident.io, GitHub Issues, or any system that can POST signed JSON — including Alertmanager-shaped bodies, fanned out one incident per alert",
+    "Read-only by default — write actions are opt-in per signal pattern, and every one is audited",
+    "Rotation-aware: the on-shift automation tier arms and disarms itself"
+  ],
+  "defaultEnabled": false,
+  "platform": {
+    "os": [
+      "macos",
+      "linux",
+      "windows"
+    ]
+  },
+  "iconPath": "assets/icon.png",
+  "heroImage": "assets/hero-light.png",
+  "heroImageDark": "assets/hero-dark.png",
+  "permissions": {
+    "api": [
+      "/api/apps/ops-mission-control",
+      "/api/apps/ops-mission-control/*",
+      "/api/chat",
+      "/api/chat/*",
+      "/api/approvals",
+      "/api/approvals/*"
+    ],
+    "events": [
+      "slots",
+      "notification"
+    ],
+    "network": true,
+    "storage": true,
+    "cron": true,
+    "mcpTools": [
+      "cron_add",
+      "cron_list",
+      "send_message",
+      "spawn_run",
+      "learn_add",
+      "ops_mission_control_api"
+    ]
+  },
+  "notifications": {
+    "channels": [
+      {
+        "id": "waiting-on-you",
+        "name": "Waiting on you",
+        "icon": "UserCheck",
+        "defaultPriority": "critical"
+      },
+      {
+        "id": "source-health",
+        "name": "Source health",
+        "icon": "Radio"
+      },
+      {
+        "id": "incident-released",
+        "name": "Released incidents",
+        "icon": "Clock",
+        "defaultPriority": "passive"
+      }
+    ]
+  },
+  "dependencies": {
+    "optionalCommands": [
+      "aws",
+      "gh"
+    ]
+  },
+  "crons": [
+    {
+      "name": "dispatch",
+      "every": 120,
+      "silent": true,
+      "persistent_session": false,
+      "enabled": false,
+      "message": "Follow the dispatch SOP at ~/.kiro/crew/skills/ops-mission-control/ops-mission-control/sops/dispatch.md. Call POST /api/apps/ops-mission-control/dispatch to claim any unclaimed signals; it returns each claimed incident with its ledger matches, operating mode, and a ready-to-use investigation brief. For each claimed incident, create a chat slot whose key is EXACTLY ops-mission-control-<incident_id> (the dashboard incident panel polls that key, so any other key leaves the user watching an empty conversation) titled '<incident_id> - <signal title>', and start the investigation from that brief following ~/.kiro/crew/skills/ops-mission-control/ops-mission-control/sops/investigate.md. Tell the investigator explicitly that Phase 4 is mandatory: it MUST record its diagnosis with POST /api/apps/ops-mission-control/incident/transition (an incident with no recorded diagnosis shows on the board as 'Stopped, no diagnosis', which misreports a finished analysis as a dead end). If the response reports changed=false, produce NO output at all - this job is silent by design."
+    },
+    {
+      "name": "reconcile",
+      "every": 900,
+      "silent": true,
+      "persistent_session": false,
+      "enabled": false,
+      "message": "Follow the reconcile SOP at ~/.kiro/crew/skills/ops-mission-control/ops-mission-control/sops/reconcile.md. FIRST: GET /api/apps/ops-mission-control/state and if no provider has configured=true, produce NO output and stop - the app is not set up yet, so there is nothing to reconcile and this must cost nothing. Otherwise GET /api/apps/ops-mission-control/signals, then resolve any open incident whose signal is no longer firing (POST /incident/transition); recording the transition updates the incident's Slack message itself. Cap at 10 incidents per run. If nothing changed, produce NO output."
+    },
+    {
+      "name": "rotation-check",
+      "every": 300,
+      "silent": true,
+      "persistent_session": false,
+      "enabled": true,
+      "message": "Follow the rotation-check SOP at ~/.kiro/crew/skills/ops-mission-control/ops-mission-control/sops/rotation-check.md. FIRST: GET /api/apps/ops-mission-control/state and if no provider has configured=true, produce NO output and stop - the app is not set up yet, so there is nothing to arm and this must cost nothing. Otherwise POST /api/apps/ops-mission-control/rotation/arm, which resolves the shift and arms or disarms the app's crons itself. You do NOT choose which crons to pause: the route computes the tier map and refuses to pause an always-tier job, so a mistake here cannot strand the instance unable to re-arm. If the response reports an empty changed list, produce NO output."
+    },
+    {
+      "name": "ledger-hygiene",
+      "cron_expr": "17 3 * * *",
+      "silent": true,
+      "persistent_session": false,
+      "enabled": true,
+      "message": "Follow the ledger-hygiene SOP at ~/.kiro/crew/skills/ops-mission-control/ops-mission-control/sops/ledger-hygiene.md. FIRST: GET /api/apps/ops-mission-control/state and if no provider has configured=true, produce NO output and stop - the app is not set up yet, so there is nothing to maintain and this must cost nothing. Otherwise POST /api/apps/ops-mission-control/ledger/hygiene to run the deterministic pass (git pull, dedupe/decay/prune, vector index, retire old closed incidents, git push), then review the remaining entries for contradictions and promote observed->verified where a fix has now worked more than once. Report only if something changed."
+    }
+  ],
+  "skills": [
+    "skills/ops-mission-control"
+  ],
+  "backend": {
+    "hooks": {
+      "routes": "backend.routes:register_routes"
+    }
+  },
+  "ui": {
+    "entry": "dist/index.mjs",
+    "pages": [
+      {
+        "route": "/apps/ops-mission-control",
+        "label": "Mission Control"
+      }
+    ]
+  },
+  "useCases": [
+    "Watch operational signals, investigate incidents, reuse proven fixes, and hand over a complete local audit trail."
+  ],
+  "configuration": [
+    "Add providers in Settings using environment credentials or provider tokens, keep Observe for read-only use, and explicitly opt into allowed Propose or Act actions; Slack output reuses an existing Kiro Crew connection."
+  ],
+  "screenshots": [
+    "assets/screenshot-main.png"
+  ],
+  "l10n": {
+    "bn": {
+      "displayName": "Ops Mission Control",
+      "description": "নিজে থেকে কাজ করা একটি অন-কল ফার্স্ট রেসপন্ডার। তোমার অ্যালার্ম, পেজ ও মনিটরের ওপর নজর রাখে; যা ফায়ার করছে তা নিজের হাতে নেয়; আসল প্রেক্ষাপট নিয়ে সেটি অনুসন্ধান করে; আর একটি ফিক্স প্রস্তাব করে — যা যা শেখে সব একটি লোকাল লেজারে রাখা থাকে, তাই একই জিনিস দ্বিতীয়বার হলে প্রথমবারের চেয়ে দ্রুত মেটে।",
+      "pageLabel": "Mission Control",
+      "highlights": [
+        "ফায়ার করা কোনো অ্যালার্ম একটি হার্টবিটের মধ্যেই নিজের হাতে নেয়, আর কাউকে তাকাতে হওয়ার আগেই অনুসন্ধান শুরু করে",
+        "কনফিডেন্স ও ট্রাস্টের মাত্রাসহ একটি নলেজ লেজার — একই সমস্যা আবার হলে তুমি যা আগে থেকেই জানো তা থেকেই মেটে",
+        "ড্যাশবোর্ডে একটি লাইভ বোর্ড, আর উত্তর দেওয়া যায় এমন Slack থ্রেড হিসেবেও — তাই চ্যানেলটাই ড্যাশবোর্ড",
+        "AWS CloudWatch, PagerDuty, Datadog, incident.io, GitHub Issues, বা সাইন করা JSON POST করতে পারে এমন যেকোনো সিস্টেমের সঙ্গে জুড়ে যায় — Alertmanager-আকারের বডিও চলে, প্রতি অ্যালার্টে একটি করে ইনসিডেন্ট বানিয়ে ছড়িয়ে দেওয়া হয়",
+        "ডিফল্টে শুধু-পঠন — লেখার কাজ প্রতি সিগন্যাল প্যাটার্ন ধরে আলাদা করে চালু করতে হয়, আর প্রতিটির অডিট রাখা হয়",
+        "রোটেশন বুঝে চলে: শিফটে থাকা অবস্থায় অটোমেশনের স্তর নিজে থেকেই সক্রিয় ও নিষ্ক্রিয় হয়"
+      ]
+    },
+    "de": {
+      "displayName": "Ops Mission Control",
+      "description": "Ein autonomer Ersthelfer für den Betrieb. Er beobachtet deine Alarme, Pager-Meldungen und Überwachungen, übernimmt selbst, was auslöst, untersucht es mit echtem Kontext und schlägt eine Korrektur vor — und hält alles Gelernte in einem lokalen Register, damit der zweite Vorfall schneller geht als der erste.",
+      "pageLabel": "Mission Control",
+      "highlights": [
+        "Übernimmt einen auslösenden Alarm innerhalb eines Heartbeats und untersucht ihn, bevor jemand hinsehen muss",
+        "Wissensregister mit Konfidenz- und Vertrauensstufen — ein wiederkehrender Fehler wird aus dem gelöst, was du schon weißt",
+        "Live-Board im Dashboard und als Slack-Threads, auf die du antworten kannst, sodass der Kanal das Dashboard ist",
+        "Verbindet AWS CloudWatch, PagerDuty, Datadog, incident.io, GitHub Issues oder jedes System, das signiertes JSON per POST senden kann — auch Nutzlasten im Alertmanager-Format, aufgefächert zu einem Vorfall pro Alarm",
+        "Standardmäßig schreibgeschützt — Schreibvorgänge werden pro Signalmuster einzeln freigegeben, und jeder wird protokolliert",
+        "Berücksichtigt die Rotation: Die Automatisierungsstufe für die aktive Schicht aktiviert und deaktiviert sich selbst"
+      ]
+    },
+    "es": {
+      "displayName": "Ops Mission Control",
+      "description": "Un primer respondedor autónomo para operaciones. Vigila tus alarmas, avisos de guardia y monitores; reclama lo que se dispara; lo investiga con contexto real; y propone una corrección — con todo lo que aprende guardado en un registro local para que la segunda vez sea más rápida que la primera.",
+      "pageLabel": "Mission Control",
+      "highlights": [
+        "Reclama en un solo heartbeat una alarma que se dispara, e investiga antes de que nadie tenga que mirar",
+        "Registro de conocimiento con niveles de certeza y de confianza — un fallo repetido se resuelve con lo que ya sabes",
+        "Tablero en vivo en el panel y como hilos de Slack a los que puedes responder, así el canal es el panel",
+        "Se conecta con AWS CloudWatch, PagerDuty, Datadog, incident.io, GitHub Issues o cualquier sistema que pueda hacer POST de JSON firmado — incluidos los cuerpos con forma de Alertmanager, repartidos en un incidente por alerta",
+        "Solo lectura por defecto — las acciones de escritura se activan por patrón de señal, y cada una queda auditada",
+        "Tiene en cuenta la rotación: el nivel de automatización de guardia se activa y se desactiva por su cuenta"
+      ]
+    },
+    "fr": {
+      "displayName": "Ops Mission Control",
+      "description": "Un premier intervenant autonome pour l’exploitation. Il surveille tes alarmes, tes appels d’astreinte et tes moniteurs; prend en charge ce qui se déclenche; enquête avec un vrai contexte; et propose un correctif — en gardant tout ce qu’il apprend dans un registre local, pour que la deuxième occurrence aille plus vite que la première.",
+      "pageLabel": "Mission Control",
+      "highlights": [
+        "Prend en charge une alarme qui se déclenche en une seule pulsation et enquête avant que quiconque ait besoin d’y regarder",
+        "Registre de connaissances avec niveaux de confiance et de fiabilité — une panne récurrente se résout à partir de ce que tu sais déjà",
+        "Tableau en direct dans le tableau de bord et sous forme de fils Slack auxquels tu peux répondre, pour que le canal soit le tableau de bord",
+        "Se connecte à AWS CloudWatch, PagerDuty, Datadog, incident.io, GitHub Issues ou à tout système capable d’envoyer du JSON signé en POST — y compris des corps au format Alertmanager, éclatés en un incident par alerte",
+        "En lecture seule par défaut — les actions d’écriture sont à activer explicitement pour chaque motif de signal, et chacune est auditée",
+        "Tient compte de la rotation d’astreinte: le niveau d’automatisation en service s’arme et se désarme de lui-même"
+      ]
+    },
+    "hi": {
+      "displayName": "Ops Mission Control",
+      "description": "ऑप्स का एक स्वायत्त फ़र्स्ट रेस्पॉन्डर। तुम्हारे अलार्म, पेजर अलर्ट और मॉनिटर पर नज़र रखता है; जो भड़के उसे खुद उठा लेता है; असली संदर्भ के साथ उसकी जाँच करता है; और एक फ़िक्स सुझाता है — जो कुछ सीखता है उसे लोकल लेजर में रखता जाता है, ताकि वही दिक्कत दूसरी बार पहली बार से जल्दी निपटे।",
+      "pageLabel": "Mission Control",
+      "highlights": [
+        "भड़कते अलार्म को एक हार्टबीट के भीतर उठा लेता है और किसी के देखने से पहले ही जाँच शुरू कर देता है",
+        "कॉन्फ़िडेंस और भरोसे के स्तरों वाला नॉलेज लेजर — दोबारा हुई गड़बड़ी उसी से हल हो जाती है जो तुम पहले से जानते हो",
+        "डैशबोर्ड में लाइव बोर्ड, और जवाब देने योग्य Slack थ्रेड के रूप में भी, इसलिए चैनल ही डैशबोर्ड है",
+        "AWS CloudWatch, PagerDuty, Datadog, incident.io, GitHub Issues, या किसी भी ऐसे सिस्टम से जुड़ता है जो साइन किया हुआ JSON POST कर सके — इसमें Alertmanager जैसी बॉडी भी शामिल हैं, जो हर अलर्ट के लिए एक इंसिडेंट में बँट जाती हैं",
+        "डिफ़ॉल्ट रूप से रीड-ओनली — राइट कार्रवाइयाँ हर सिग्नल पैटर्न के लिए अलग से चालू करनी पड़ती हैं, और हर एक का ऑडिट होता है",
+        "रोटेशन का ध्यान रखता है: ऑन-शिफ़्ट ऑटोमेशन टियर खुद ही चालू और बंद होता रहता है"
+      ]
+    },
+    "it": {
+      "displayName": "Ops Mission Control",
+      "description": "Un primo soccorritore autonomo per le emergenze operative. Tiene d’occhio i tuoi allarmi, le chiamate di reperibilità e i monitor; prende in carico ciò che scatta; indaga con contesto reale; e propone una correzione — conservando in un registro locale tutto ciò che impara, così la seconda volta è più rapida della prima.",
+      "pageLabel": "Mission Control",
+      "highlights": [
+        "Prende in carico un allarme che scatta entro un heartbeat e indaga prima che qualcuno debba guardare",
+        "Registro di conoscenza con livelli di confidenza e di fiducia — un guasto che si ripete si risolve con quello che già sai",
+        "Bacheca in tempo reale nella dashboard e come thread Slack a cui puoi rispondere, così il canale è la dashboard",
+        "Si collega ad AWS CloudWatch, PagerDuty, Datadog, incident.io, GitHub Issues o a qualsiasi sistema in grado di fare POST di JSON firmato — compresi i payload in formato Alertmanager, suddivisi in un incidente per ogni avviso",
+        "Di sola lettura per impostazione predefinita — le azioni di scrittura vanno attivate per singolo schema di segnale, e ognuna viene tracciata",
+        "Conosce i turni: il livello di automazione in servizio si arma e si disarma da sé"
+      ]
+    },
+    "ja": {
+      "displayName": "Ops Mission Control",
+      "description": "自律型オペレーション初期対応者。アラーム、ページ、モニターを監視し、発火したものを引き受け、実際のコンテキストで調査し、修正を提案します。すべての学習を地元の元帳に保持するため、2番目の発生は最初よりも高速です。",
+      "pageLabel": "Mission Control",
+      "highlights": [
+        "発火したアラームを1ハートビート以内に引き受け、誰も見る必要があるまえに調査します",
+        "信頼度と信頼レベルを持つ知識元帳 — 繰り返し障害は既知のもので解決します",
+        "ダッシュボードの動的ボードと返信可能な Slack スレッド。チャネルはダッシュボード",
+        "AWS CloudWatch、PagerDuty、Datadog、incident.io、GitHub Issues、または署名された JSON をPOSTできる任意のシステムに接続 — Alertmanager型ボディも含めて、1インシデントごとにファンアウト",
+        "デフォルトは読み取り専用 — 書き込みアクションはシグナルパターンごとにオプトインであり、すべて監査されます",
+        "ローテーション対応:オンシフト自動化層は自動的にアーミングと解除を行います"
+      ]
+    },
+    "ko": {
+      "displayName": "Ops Mission Control",
+      "description": "자율 운영 초동 대응자입니다. 알람, 페이지, 모니터를 감시하고 발생한 것을 인수하며, 실제 컨텍스트로 조사하고 수정을 제안합니다. 학습한 모든 내용을 로컬 원장에 보관하므로 두 번째 발생은 첫 번째보다 빠릅니다.",
+      "pageLabel": "Mission Control",
+      "highlights": [
+        "발생한 알람을 하트비트 한 번 안에 인수하고 누군가 확인해야 하기 전에 조사합니다",
+        "신뢰도와 신뢰 수준을 갖춘 지식 원장 — 반복되는 장애는 이미 알고 있는 내용으로 해결됩니다",
+        "대시보드의 실시간 보드와 회신 가능한 Slack 스레드 — 채널이 곧 대시보드입니다",
+        "AWS CloudWatch, PagerDuty, Datadog, incident.io, GitHub Issues 또는 서명된 JSON을 POST할 수 있는 모든 시스템에 연결 — Alertmanager 형태의 본문도 포함하며 알림당 인시던트 하나로 팬아웃합니다",
+        "기본은 읽기 전용 — 쓰기 작업은 신호 패턴별 옵트인이며 모두 감사됩니다",
+        "교대 인식: 근무 중 자동화 계층이 스스로 활성화되고 해제됩니다"
+      ]
+    },
+    "pt": {
+      "displayName": "Ops Mission Control",
+      "description": "Um primeiro respondente autônomo de operações. Vigia seus alarmes, acionamentos e monitores; assume o que dispara; investiga com contexto real; e propõe uma correção — guardando tudo o que aprende em um registro local, para que a segunda ocorrência seja mais rápida que a primeira.",
+      "pageLabel": "Mission Control",
+      "highlights": [
+        "Assume um alarme em disparo em um único heartbeat e investiga antes de alguém precisar olhar",
+        "Registro de conhecimento com níveis de confiança e credibilidade — uma falha repetida se resolve a partir do que você já sabe",
+        "Quadro ao vivo no painel e em threads do Slack que aceitam resposta, para que o canal seja o painel",
+        "Conecta AWS CloudWatch, PagerDuty, Datadog, incident.io, GitHub Issues ou qualquer sistema capaz de fazer POST de JSON assinado — incluindo corpos no formato do Alertmanager, desdobrados em um incidente por alerta",
+        "Somente leitura por padrão — as ações de escrita precisam da sua liberação para cada padrão de sinal, e todas elas são auditadas",
+        "Segue a escala de plantão: o nível de automação se arma e se desarma sozinho"
+      ]
+    },
+    "ru": {
+      "displayName": "Ops Mission Control",
+      "description": "Автономный дежурный первой линии по эксплуатации. Следит за твоими тревогами, вызовами пейджера и мониторами; берёт в работу то, что сработало; разбирается с этим, имея на руках реальный контекст; и предлагает исправление — а всё, что узнаёт по ходу, складывает в локальный журнал, чтобы повторный случай разбирался быстрее первого.",
+      "pageLabel": "Mission Control",
+      "highlights": [
+        "Берёт сработавшую тревогу в работу за один цикл heartbeat и начинает разбираться раньше, чем кому-то придётся смотреть",
+        "Журнал знаний с уровнями уверенности и доверия — повторный сбой решается по тому, что тебе уже известно",
+        "Живая доска на панели и ветки Slack, в которых можно отвечать, так что канал и есть панель",
+        "Подключает AWS CloudWatch, PagerDuty, Datadog, incident.io, GitHub Issues или любую систему, которая умеет отправить подписанный JSON методом POST — включая тела в формате Alertmanager, которые разворачиваются в отдельный инцидент на каждое оповещение",
+        "По умолчанию только чтение — запись включается отдельно для каждого шаблона сигнала, и каждая такая операция протоколируется",
+        "С учётом графика дежурств: уровень автоматизации сам включается на смене и выключается после неё"
+      ]
+    },
+    "zh-CN": {
+      "displayName": "Ops Mission Control",
+      "description": "一个自主的运维一线响应者。它盯着你的告警、呼叫和监控项，谁在报警就接手谁，带着真实上下文去调查，并给出修复建议 — 学到的东西都记在本地账本里，于是同一个故障第二次出现时比第一次更快解决。",
+      "pageLabel": "Mission Control",
+      "highlights": [
+        "告警一触发就在一个心跳内接手，在任何人需要去看之前就开始调查",
+        "知识账本带置信度和信任级别 — 同一个故障再次出现时，直接用已经掌握的结论解决",
+        "实时看板既在仪表板里，也是可回复的 Slack 话题，于是频道就是仪表板",
+        "可连接 AWS CloudWatch、PagerDuty、Datadog、incident.io、GitHub Issues，或任何能 POST 签名 JSON 的系统 — 包括 Alertmanager 格式的请求体，每条告警各自展开为一个事件",
+        "默认只读 — 写操作按信号模式逐个显式开启，每一次都有审计记录",
+        "感知轮值：值班时自动化档位自行开启，不值班时自行关闭"
+      ]
+    }
+  }
+}
