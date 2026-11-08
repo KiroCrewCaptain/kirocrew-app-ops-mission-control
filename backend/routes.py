@@ -13,16 +13,17 @@ is set.
 This module is the surface's composition root; the handler bodies live in
 ``http_routes`` (its package docstring maps them). What stays HERE is what has to stay
 addressable as ``routes``: the registration table, the audit writer,
-the redaction floor (this module is the registered redaction sink for the ledger write),
-the ledger indexer, a handler for each route whose projection calls a seam — it hands the
+the redaction floor (this module is the registered redaction sink for the ledger write
+and for the agent tool's inbound body), the ledger indexer, a handler for each route whose projection calls a seam — it hands the
 projection this module's CURRENT binding of each one — and three adapters that keep
 ``_schedule_verification``, ``_execute_stored_proposal`` and ``_settings_write_or_refuse``
 callable with their historic signatures. The six routes whose projection calls no seam
 register that projection directly.
 
 The patchable seams are exactly ``get_registry``, ``_audit``,
-``_safe_outbound``, ``put_secret``, ``delete_secret``, ``merge_provider_config`` and
-``_index_ledger_safely``: ``mock.patch.object(routes, <seam>)`` reaches every call site that
+``_safe_outbound``, ``put_secret``, ``delete_secret``, ``merge_provider_config``,
+``_index_ledger_safely``, ``_scrub_inbound`` and ``_served_call`` (the last two are the
+agent tool's: its inbound scrub, and the served handler an allowed call is answered by): ``mock.patch.object(routes, <seam>)`` reaches every call site that
 reads one. Every other name it offers (``_authorize``, ``_sink_refuses``, ``_slot_state``, the
 constants, the domain module objects, ...) is a re-export of the object its owner defines, or
 one of the three adapters. Patching it here changes what ``routes.<name>`` returns, not what a
@@ -65,6 +66,7 @@ from .http_routes import (
 from .http_routes import (
     webhook as webhook_routes,
 )
+from .http_routes import agent_tool as agent_tool_routes
 from .http_routes._shared import (  # noqa: F401 -- historical module export
     APP_NAME,
     _json_body,
@@ -192,6 +194,37 @@ def _safe_outbound(text: str) -> str:
     an enterprise host that fails to compose its companion fails CLOSED.
     """
     return redact_tokens(redact_via_context(text))
+
+
+def _redact_json_strings(value: Any) -> Any:
+    """Every string of decoded JSON, keys included, through ``redact_via_context``."""
+    if isinstance(value, str):
+        return redact_via_context(value)
+    if isinstance(value, dict):
+        return {_redact_json_strings(k): _redact_json_strings(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_redact_json_strings(item) for item in value]
+    return value
+
+
+def _scrub_inbound(value: Any) -> Any:
+    """An agent tool call's decoded JSON body, scrubbed before any handler reads it.
+
+    The declared schema saw ``body_json`` as one opaque string, where an escape like
+    ``\\u200b`` is plain ASCII: the hidden character only materializes when the body is
+    decoded. So the decoded body is walked through the host's hidden-character sanitizer
+    first, then every string through the redaction pass, the built-in tool's two passes
+    in the built-in's order. Ledger entries persist and sync to a team remote, so a
+    credential quoted into a body is removed before it is written, not only on the way
+    out. Raises :class:`_host.HostUnavailable` on a host without the sanitizer.
+    """
+    return _redact_json_strings(_host.sanitize_json_values(value))
+
+
+def _served_call(method: str, path: str) -> _host.Handler:
+    """The served handler (:func:`_served`) of the ``(method, path)`` row of :data:`ROUTE_TABLE`."""
+    name = next(n for m, p, n in ROUTE_TABLE if (m, p) == (method, path))
+    return _served(name)
 
 
 def _index_ledger_safely() -> dict[str, int]:
@@ -335,6 +368,12 @@ async def _handle_webhook(request: web.Request) -> web.StreamResponse:
     return await webhook_routes._handle_webhook(request, _audit=_audit)
 
 
+async def _handle_agent_tool(request: web.Request) -> web.StreamResponse:
+    return await agent_tool_routes._handle_agent_tool(
+        request, _audit=_audit, _scrub_inbound=_scrub_inbound, _served_call=_served_call
+    )
+
+
 # ---------------------------------------------------------------------------
 # Helpers that take seams, callable here with their historic signatures
 # ---------------------------------------------------------------------------
@@ -403,6 +442,8 @@ ROUTE_TABLE: tuple[tuple[str, str, str], ...] = (
     ("POST", "/ledger/hygiene", "_handle_ledger_hygiene"),
     ("DELETE", "/ledger", "_handle_delete_ledger"),
     ("POST", "/webhook", "_handle_webhook"),
+    # The agent tool app.json declares (`agentTools`): the gateway posts each call here.
+    ("POST", "/agent-tools", "_handle_agent_tool"),
 )
 
 

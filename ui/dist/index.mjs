@@ -2224,8 +2224,11 @@ function SignalsPanel() {
 					className: "flex items-center gap-2 mt-3",
 					children: [
 						/* @__PURE__ */ jsxs(Btn, {
-							disabled: signalsQuery.isFetching,
-							onClick: () => signalsQuery.refetch(),
+							"aria-disabled": signalsQuery.isFetching || void 0,
+							className: "aria-disabled:opacity-30 aria-disabled:cursor-default",
+							onClick: () => {
+								if (!signalsQuery.isFetching) signalsQuery.refetch();
+							},
 							title: i18nT("apps.opsMissionControl.signalsPanel.poll_every_configured_source_now_read_only"),
 							children: [
 								/* @__PURE__ */ jsx(RefreshCw, { className: "lucide-inline" }),
@@ -2591,8 +2594,11 @@ function HandoverPanel() {
 					className: "flex items-center gap-2",
 					children: [
 						/* @__PURE__ */ jsxs(Btn, {
-							disabled: query.isFetching,
-							onClick: () => query.refetch(),
+							"aria-disabled": query.isFetching || void 0,
+							className: "aria-disabled:opacity-30 aria-disabled:cursor-default",
+							onClick: () => {
+								if (!query.isFetching) query.refetch();
+							},
 							children: [
 								/* @__PURE__ */ jsx(RefreshCw, { className: "lucide-inline" }),
 								" ",

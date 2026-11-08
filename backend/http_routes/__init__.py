@@ -19,6 +19,9 @@ slice of the surface:
   ``/settings``, and which of the app's crons ``/rotation/arm`` leaves armed.
 - ``ledger`` — the shared ledger: read, contradictions, write, hygiene and delete.
 - ``webhook`` — the bounded, signed ``/webhook`` ingress.
+- ``agent_tool`` — ``/agent-tools``, the ``ops_mission_control_api`` agent tool ``app.json``
+  declares: its allowlist, its inbound scrub and its channel-agent hold, then the call is
+  answered by the route's own handler.
 
 **Dependency rule.** Nothing here imports ``routes``, and nothing here binds a facade seam at
 module scope. A projection that calls one of the seams (``get_registry``, ``_audit``,

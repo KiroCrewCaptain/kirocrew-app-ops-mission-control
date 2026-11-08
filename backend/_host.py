@@ -254,7 +254,8 @@ HOST_FUNCTIONS: dict[str, tuple[str, tuple[str, ...]]] = {
             "run_limited",
         ),
     ),
-    "security": ("kiro_crew.security", ("get_credential_patterns",)),
+    "security": ("kiro_crew.security", ("iter_credential_matches",)),
+    "validation": ("kiro_crew.validation", ("sanitize_json_values",)),
     "webhook_sources": ("kiro_crew.webhook_sources", ("source_refusal",)),
     "admission": (
         "kiro_crew.platform.admission",
@@ -379,7 +380,8 @@ _STAND_INS: dict[str, dict[str, Any]] = {
         ),
         "run_limited": _sandbox_refused("run_limited", is_async=False),
     },
-    "security": {"get_credential_patterns": _refuse("get_credential_patterns")},
+    "security": {"iter_credential_matches": _refuse("iter_credential_matches")},
+    "validation": {"sanitize_json_values": _refuse("sanitize_json_values")},
     "webhook_sources": {"source_refusal": _no_webhooks},
     "admission": {
         "evaluate_admission": _refuse("evaluate_admission"),
@@ -472,7 +474,8 @@ sandboxed_spawn_argv = SURFACES["sandbox"].sandboxed_spawn_argv
 sandboxed_spawn_argv_async = SURFACES["sandbox"].sandboxed_spawn_argv_async
 run_limited = SURFACES["sandbox"].run_limited
 kill_and_reap = SURFACES["platform_compat"].kill_and_reap
-get_credential_patterns = SURFACES["security"].get_credential_patterns
+iter_credential_matches = SURFACES["security"].iter_credential_matches
+sanitize_json_values = SURFACES["validation"].sanitize_json_values
 source_refusal = SURFACES["webhook_sources"].source_refusal
 evaluate_admission = SURFACES["admission"].evaluate_admission
 load_admission_policy = SURFACES["admission"].load_admission_policy

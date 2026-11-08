@@ -92,6 +92,7 @@ _ROUTE_TABLE: tuple[tuple[str, str, str], ...] = (
     ("POST", f"{_BASE}/ledger/hygiene", "_handle_ledger_hygiene"),
     ("DELETE", f"{_BASE}/ledger", "_handle_delete_ledger"),
     ("POST", f"{_BASE}/webhook", "_handle_webhook"),
+    ("POST", f"{_BASE}/agent-tools", "_handle_agent_tool"),
 )
 
 _HANDLER_SIGNATURE = "(request: 'web.Request') -> 'web.StreamResponse'"
@@ -120,6 +121,8 @@ _HISTORIC_SIGNATURES: dict[str, str] = {
         " -> 'bool | None'"
     ),
     "_safe_outbound": "(text: 'str') -> 'str'",
+    "_scrub_inbound": "(value: 'Any') -> 'Any'",
+    "_served_call": "(method: 'str', path: 'str') -> '_host.Handler'",
     "_schedule_verification": (
         "(incident_id: 'str', action: 'str', duration_secs: 'Any') -> 'tuple[str, str]'"
     ),
@@ -195,6 +198,8 @@ _SEAMS = (
     "delete_secret",
     "merge_provider_config",
     "_index_ledger_safely",
+    "_scrub_inbound",
+    "_served_call",
 )
 
 _SIGNING_SECRET = "composition-contract-signing-secret"
@@ -669,6 +674,35 @@ class TestEverySeamControlsItsCallSites(_Home):
                     with self.assertRaises(_SeamReached):
                         await asyncio.wait_for(call(), 10)
 
+    # -- _scrub_inbound and _served_call (the agent tool's) -----------------------------
+
+    async def test_the_agent_tool_scrubs_and_dispatches_through_routes(self) -> None:
+        def tool_call(method: str, path: str, body_json: str = "") -> Any:
+            args = {"method": method, "path": path}
+            if body_json:
+                args["body_json"] = body_json
+            return _request({"tool": "ops_mission_control_api", "arguments": args})
+
+        cases: dict[str, tuple[str, Callable[[], Any]]] = {
+            "scrub": (
+                "_scrub_inbound",
+                lambda: routes._handle_agent_tool(tool_call("POST", "/ledger", '{"fix": "f"}')),
+            ),
+            "dispatch_get": (
+                "_served_call",
+                lambda: routes._handle_agent_tool(tool_call("GET", "/state")),
+            ),
+            "dispatch_post": (
+                "_served_call",
+                lambda: routes._handle_agent_tool(tool_call("POST", "/dispatch")),
+            ),
+        }
+        for label, (seam, call) in cases.items():
+            with self.subTest(site=label):
+                with mock.patch.object(routes, seam, side_effect=_SeamReached(label)):
+                    with self.assertRaises(_SeamReached):
+                        await asyncio.wait_for(call(), 10)
+
     # -- _audit ---------------------------------------------------------------------------
 
     async def test_audit_is_written_through_routes_on_the_refusal_paths(self) -> None:
@@ -981,6 +1015,7 @@ class TestTheProjectionsStayBehindTheFacade(unittest.TestCase):
                 "ledger",
                 "lifecycle",
                 "webhook",
+                "agent_tool",
             },
         )
 

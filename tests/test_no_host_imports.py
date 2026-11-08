@@ -56,7 +56,8 @@ PINNED_HOST_FUNCTIONS: dict[str, tuple[str, tuple[str, ...]]] = {
             "run_limited",
         ),
     ),
-    "security": ("kiro_crew.security", ("get_credential_patterns",)),
+    "security": ("kiro_crew.security", ("iter_credential_matches",)),
+    "validation": ("kiro_crew.validation", ("sanitize_json_values",)),
     "webhook_sources": ("kiro_crew.webhook_sources", ("source_refusal",)),
     "admission": (
         "kiro_crew.platform.admission",
