@@ -1,165 +1,86 @@
-"""Tests for the ``ops_mission_control_api`` MCP tool's authorization story.
+"""The ``ops_mission_control_api`` declaration as the host's field engine reads it.
 
-The tool is the ONLY credentialed path from an agent session to the app's HTTP
-surface (the ``issue_radar_record_investigation`` precedent: the MCP server
-process holds the internal secret; the agent never sees a credential). Three
-planes must stay mutually consistent, and each has a failure mode this module
-pins:
+The declaration (``app.json`` ``agentTools``) is what the gateway validates a call's
+arguments against before it posts the call to ``POST /agent-tools``. Two planes are
+pinned here, on any Kiro Crew this app supports, with or without a core tool of the
+same name:
 
-- the **(method, path) allowlist** in ``validation_parts/app_schemas.py`` — widening it is an
-  authorization change and must look like one in review;
-- the **schema** rejecting off-surface calls before any HTTP happens;
-- the **gateway's mixed-internal path set** admitting exactly the allowlisted
-  surface for internal-secret callers, and never the app's configuration,
-  webhook-ingest, or human-decision routes.
+- the **declared schema**, run through the host's own ``build_tool_schema`` and field
+  engine: an off-surface path, an unknown method or argument, and an oversized string
+  are refused before the app is called. The pair, query and body rules the schema
+  subset cannot say are the route's (``test_agent_tool_route.py``);
+- the **gateway's internal-secret path sets** never admit the routes an agent must not
+  reach: the configuration, secret, webhook-ingest and human-decision routes.
 """
 
+from __future__ import annotations
+
+import json
 import unittest
+from pathlib import Path
+from typing import Any
 
-from kiro_crew.dashboard.server import _MIXED_INTERNAL_API_PATHS
+from kiro_crew.apps.app_agent_tools import DeclaredTool, build_tool_schema
+from kiro_crew.apps.manifest import AppManifest
+from kiro_crew.dashboard.server import _MIXED_INTERNAL_API_PATHS, _STRICT_INTERNAL_API_PATHS
 from kiro_crew.dashboard.token_auth import internal_path_matches
-from kiro_crew.validation import (
-    OPS_MISSION_CONTROL_ALLOWED_CALLS,
-    OPS_MISSION_CONTROL_API_SCHEMA,
-    ValidationError,
-    validate_tool_args,
-)
+from kiro_crew.validation import ValidationError, validate_tool_args
+
+_APP_JSON = Path(__file__).resolve().parents[1] / "app.json"
 
 
-class TestAllowlist(unittest.TestCase):
-    def test_the_agent_surface_is_exactly_what_the_sops_use(self):
-        """Every path an SOP instructs, nothing more.
+def _declared() -> DeclaredTool:
+    manifest = AppManifest.from_json_file(_APP_JSON)
+    (decl,) = manifest.agentTools.tools
+    return DeclaredTool(app=manifest.name, route=manifest.agentTools.route, decl=decl)
 
-        A new entry here must come WITH an SOP that needs it — this test is the
-        review speed bump for widening the agent surface.
-        """
-        self.assertEqual(
-            OPS_MISSION_CONTROL_ALLOWED_CALLS,
-            frozenset(
-                {
-                    ("GET", "/state"),
-                    ("GET", "/signals"),
-                    ("GET", "/incidents"),
-                    ("GET", "/handover"),
-                    ("GET", "/rotation"),
-                    ("GET", "/ledger"),
-                    ("GET", "/ledger/contradictions"),
-                    ("POST", "/dispatch"),
-                    ("POST", "/incident/transition"),
-                    ("POST", "/incident/claim"),
-                    ("POST", "/incident/action"),
-                    ("POST", "/rotation/arm"),
-                    ("POST", "/ledger"),
-                    ("POST", "/ledger/hygiene"),
-                }
-            ),
+
+class TestTheDeclaredSchema(unittest.TestCase):
+    def _validate(self, **kwargs: Any) -> dict[str, Any]:
+        return validate_tool_args(kwargs, build_tool_schema(_declared()))
+
+    def test_a_valid_get_and_post_pass(self) -> None:
+        self.assertEqual(self._validate(method="GET", path="/state")["path"], "/state")
+        cleaned = self._validate(
+            method="POST", path="/incident/transition", body_json='{"id": "INV-7"}'
         )
+        self.assertEqual(cleaned["body_json"], '{"id": "INV-7"}')
 
-    def test_excluded_routes_stay_excluded(self):
-        """The routes an agent must never reach through the tool.
-
-        ``/incident/proposal/decide`` is the human approval gate for provider
-        actions; the provider config/secret routes hold credentials; ``/webhook``
-        is external ingest with its own signature auth; bare ``/incident`` is
-        excluded because the gateway's path matcher is exact-or-prefix and
-        admitting it would prefix-admit the proposal routes.
-        """
-        allowed_paths = {p for _, p in OPS_MISSION_CONTROL_ALLOWED_CALLS}
-        for excluded in (
-            "/incident",
-            "/incident/propose",
+    def test_off_surface_paths_and_full_urls_are_refused(self) -> None:
+        for path in (
             "/incident/proposal/decide",
-            "/proposals",
-            "/providers",
             "/settings",
             "/webhook",
+            "/incident",
+            "/api/apps/ops-mission-control/state",
         ):
-            self.assertNotIn(excluded, allowed_paths)
-
-
-class TestSchema(unittest.TestCase):
-    def _validate(self, **kwargs):
-        return validate_tool_args(kwargs, OPS_MISSION_CONTROL_API_SCHEMA)
-
-    def test_a_valid_get_passes(self):
-        cleaned = self._validate(method="GET", path="/state")
-        self.assertEqual(cleaned["method"], "GET")
-        self.assertEqual(cleaned["path"], "/state")
-
-    def test_a_valid_post_with_body_passes(self):
-        cleaned = self._validate(
-            method="POST",
-            path="/incident/transition",
-            body_json='{"id": "INV-7", "status": "resolved"}',
-        )
-        self.assertEqual(cleaned["path"], "/incident/transition")
-
-    def test_method_path_pair_is_checked_not_just_membership(self):
-        """Both halves are individually legal; the PAIR is not.
-
-        ``/state`` is a real path and ``POST`` is a real method — a validator
-        that checked the two enums independently would pass this.
-        """
-        with self.assertRaises(ValidationError):
-            self._validate(method="POST", path="/state")
-        with self.assertRaises(ValidationError):
-            self._validate(method="GET", path="/incident/claim")
-
-    def test_off_surface_paths_are_rejected(self):
-        for path in ("/incident/proposal/decide", "/settings", "/webhook", "/incident"):
-            with self.assertRaises(ValidationError):
+            with self.subTest(path=path), self.assertRaises(ValidationError):
                 self._validate(method="POST", path=path)
 
-    def test_full_urls_are_rejected(self):
-        """Paths are app-base-relative; a full URL means the caller is confused."""
+    def test_an_unknown_method_or_argument_is_refused(self) -> None:
         with self.assertRaises(ValidationError):
-            self._validate(method="GET", path="/api/apps/ops-mission-control/state")
-
-    def test_query_cannot_smuggle_a_path(self):
-        """No '/', '?' or '#': a query can never rewrite the path it rides on."""
-        for bad in ("../incident/propose", "a=1?b=2", "x=1#frag", "a=/etc/passwd"):
-            with self.assertRaises(ValidationError):
-                self._validate(method="GET", path="/incidents", query=bad)
-
-    def test_query_is_get_only(self):
+            self._validate(method="DELETE", path="/ledger")
         with self.assertRaises(ValidationError):
-            self._validate(method="POST", path="/ledger", query="a=1")
+            self._validate(method="GET", path="/state", headers="x")
 
-    def test_body_is_post_only(self):
+    def test_each_string_is_bounded(self) -> None:
         with self.assertRaises(ValidationError):
-            self._validate(method="GET", path="/state", body_json='{"a": 1}')
+            self._validate(method="GET", path="/incidents", query="x" * 513)
+        with self.assertRaises(ValidationError):
+            self._validate(method="POST", path="/ledger", body_json="x" * 32_769)
+
+    def test_the_declaration_is_json_the_host_parses(self) -> None:
+        raw = json.loads(_APP_JSON.read_text(encoding="utf-8"))
+        self.assertEqual(raw["agentTools"]["tools"][0]["name"], _declared().name)
 
 
 class TestGatewayAdmission(unittest.TestCase):
-    """The mixed-internal path set and the allowlist must describe one surface."""
+    """The routes that stay dashboard-only (cookie or token), whatever the host version."""
 
-    def _mixed(self):
-        return _MIXED_INTERNAL_API_PATHS
-
-    @staticmethod
-    def _admitted(path: str, mixed) -> bool:
-        return internal_path_matches(path, mixed)
-
-    def test_every_allowlisted_call_is_admitted(self):
-        """A pair the schema allows but the gateway 403s is a broken tool."""
-        mixed = self._mixed()
-        for _method, path in OPS_MISSION_CONTROL_ALLOWED_CALLS:
-            full = "/api/apps/ops-mission-control" + path
-            self.assertTrue(
-                self._admitted(full, mixed),
-                f"{full} is allowlisted for the tool but not admitted by the gateway",
-            )
-
-    def test_sensitive_routes_are_not_admitted(self):
-        """The routes that must stay dashboard-only (cookie/token auth).
-
-        This is the property that makes the allowlist use full paths rather than
-        the app prefix: prefix-matching would admit provider secret writes and the
-        human proposal-decision route to anything holding the internal secret.
-        """
-        mixed = self._mixed()
+    def test_sensitive_routes_are_not_admitted(self) -> None:
         for path in (
             "/api/apps/ops-mission-control",
+            "/api/apps/ops-mission-control/agent-tools",
             "/api/apps/ops-mission-control/incident",
             "/api/apps/ops-mission-control/incident/propose",
             "/api/apps/ops-mission-control/incident/proposal/decide",
@@ -171,10 +92,9 @@ class TestGatewayAdmission(unittest.TestCase):
             "/api/apps/ops-mission-control/webhook",
             "/api/apps/ops-mission-control/config",
         ):
-            self.assertFalse(
-                self._admitted(path, mixed),
-                f"{path} must not be reachable with the internal secret",
-            )
+            with self.subTest(path=path):
+                self.assertFalse(internal_path_matches(path, _MIXED_INTERNAL_API_PATHS))
+                self.assertFalse(internal_path_matches(path, _STRICT_INTERNAL_API_PATHS))
 
 
 if __name__ == "__main__":

@@ -85,7 +85,7 @@ never a change here, and no Kiro Crew API was invented for this port.
 | `ui.pages` `[{"route": "/ops-mission-control", "label": "Mission Control", "icon": "Radio"}]`, page compiled into the dashboard (`app.json:125-131`, `website/src/apps/builtinRegistry.ts:71`) | `ui.entry: "dist/index.mjs"` (committed ESM bundle built from `ui/src/`), `ui.pages` `[{"route": "/apps/ops-mission-control", "label": "Mission Control"}]` | An installed app ships its page as a bundle AppHost loads. The legacy route and glyph of an adopted record come from Kiro Crew's adoption pin, never from this manifest. |
 | App Store copy keys in the dashboard catalogs (`website/src/components/appstore/appManifest.ts:304-318`) | `l10n` block in `app.json` for the 11 non-English locales | The listing copy travels with the app. It is the `apps.opsMissionControl.manifest` subtree of `ui/i18n/<locale>.json`, kept equal by a test. |
 | No `license`, no `minKiroCrewVersion` | `"license": "Apache-2.0"`, `"minKiroCrewVersion": "0.13.0"` | The repository's licence. 0.13.0 is the first release line with App Kit level 1 (structural route records, `ctx.require_owner`, `ctx.embed`, `APP_SDK_LEVEL = 1`); a 0.12 route registry skips every record that is not its own `AppRoute`, so every route would answer 404 there. |
-| The core MCP tool `ops_mission_control_api` (`mcp_tools/apps.py:117-146`, `:660-707`), its allowlist and query rule (`validation_parts/app_schemas.py:38-90`) and its channel deny of `POST /rotation/arm` (`channel.py:126-145`, enforced in `mcp_core_parts/governance.py`) | `app.json` `agentTools` declares the same tool (name, title, description, argument names, enums, `maxLength` 512 and 32,768, `maxResultChars` 60,000), and `POST /agent-tools` (`backend/http_routes/agent_tool.py`) serves it: the allowlist, the query rule, GET-only query and POST-only body, the JSON-object body walked through the host's hidden-character sanitizer then the redaction pass (`routes._scrub_inbound`), the hold of `POST /rotation/arm` for a caller whose forwarded `X-Session-Key` is a `channel:` key (403 `channel_agent_refused`, audited), then the route's own served handler over an `AgentCall` view of the request | App Kit seam level 2 (KiroCrew #32660). Until Kiro Crew drops its rows, its core tool keeps the name and serves every call (a declared name a core tool has is never the app's), so nothing changes for an agent; `tests/test_agent_tool_route.py` pins parity with the core tool on the pinned Kiro Crew and drives a validated call through the host's own `/api/app-tools/call` handler and `RouteRegistry`. See gap 2 for what Kiro Crew still has to change |
+| The core MCP tool `ops_mission_control_api` (`mcp_tools/apps.py:117-146`, `:660-707`), its allowlist and query rule (`validation_parts/app_schemas.py:38-90`) and its channel deny of `POST /rotation/arm` (`channel.py:126-145`, enforced in `mcp_core_parts/governance.py`) | `app.json` `agentTools` declares the same tool (name, title, description, argument names, enums, `maxLength` 512 and 32,768, `maxResultChars` 60,000), and `POST /agent-tools` (`backend/http_routes/agent_tool.py`) serves it: the allowlist, the query rule, GET-only query and POST-only body, the JSON-object body walked through the host's hidden-character sanitizer then the redaction pass (`routes._scrub_inbound`), the hold of `POST /rotation/arm` for a caller whose forwarded `X-Session-Key` is a `channel:` key (403 `channel_agent_refused`, audited), then the route's own served handler over an `AgentCall` view of the request | App Kit seam level 2 (KiroCrew #32660). On a Kiro Crew that still ships the core tool, the core keeps the name and serves every call (a declared name a core tool has is never the app's), so nothing changes for an agent; on one whose wheel copy serves it on the same seam, the declared tool is every agent's. `tests/test_agent_tool_route.py` pins parity with whichever the host ships and drives a validated call through the host's own `/api/app-tools/call` handler and `RouteRegistry`. See gap 2 for what Kiro Crew still has to change |
 | A refused host function surfaced as aiohttp's 500 | `503 {"code": "host_unsupported"}` from the record adapter | A route that reaches a missing host function is refused by its stand-in before any write; the page and the agent can tell that from a crash. |
 
 ## Host functions with no App Kit seam: resolved from the gateway, fail closed
@@ -150,23 +150,19 @@ the built-in. None is an App Kit seam (gap 3).
    written against a real host. The policy ceiling is a READONLY leaf (the agent
    may read it, never write it), which a mask does not express, so it needs its
    own seam.
-2. **The agent's API tool is still core's.** This copy declares
+2. **The agent's API tool: the core rows go, two questions stay.** This copy declares
    `ops_mission_control_api` in `agentTools` and serves it at `POST /agent-tools`
-   with the allowlist and the channel-agent hold, but Kiro Crew still ships the core
-   tool (`mcp_tools/apps.py` `TOOL_APPS`, descriptor and handler;
-   `validation_parts/app_schemas.py`; `validation.py`;
-   `validation_parts/server_registries.py`; the internal path table
-   `dashboard/server_internal_paths.py`; `channel.py`
-   `CHANNEL_AGENT_BLOCKED_DISPATCH_OPERATION`), and the core name wins, so every call
-   is still the core's. Dropping those rows is a Kiro Crew change that needs:
-   - **the wheel copy on the same seam first.** Existing users run the built-in until
-     their record is adopted, so the wheel `app.json` must declare the same block and
-     the wheel backend must serve `POST /agent-tools` before the core tool goes.
-     `/api/app-tools/call` reaches an in-gateway app only through `RouteRegistry`, and
-     the wheel copy mounts its routes on the gateway router directly
-     (`"backend": {"routes": ...}`), so the wheel copy must move to `hooks.routes` (or
-     the seam must reach a built-in's router routes). E9 is not in the way: `agentTools`
-     is not a permission, and this copy's `permissions` equal the wheel's.
+   with the allowlist and the channel-agent hold. Kiro Crew's branch
+   `fix/adoption-omc-tools` puts the wheel copy on the same seam (its `app.json`
+   declares the same block; `backend.hooks.routes` registers `POST /agent-tools` alone
+   with the route registry, because the wheel copy mounts its other routes on the
+   gateway router, which `/api/app-tools/call` never dispatches to) and deletes the core
+   rows: the `TOOL_APPS` row, descriptor and handler, the validation schema and
+   allowlist, the internal-secret admission and the `channel.py` operation deny. Once
+   that lands, the declared tool is the one every agent calls, built-in and adopted
+   records alike. `tests/test_agent_tool_route.py` checks parity against either host:
+   the core tool where it still exists, the wheel copy's declaration and rules where
+   it does not. Still open in Kiro Crew:
    - **listing an adopted app's tools.** `apps/app_agent_tools.py` lists only a
      first-party app, read from its SHIPPED `app.json`, and after adoption the wheel
      copy is released (`execution.shipped_builtin_app_root` returns `None`), so an
@@ -174,13 +170,13 @@ the built-in. None is an App Kit seam (gap 3).
      Kiro Crew needs a decision (app-kit-platform.md section 30.1 calls it a
      maintainer's) on listing an adopted former built-in's declared tools, for example
      from the tree at its adoption pin, or behind a per-call approval.
-   - **a verified caller on the forwarded call.** The channel-agent hold here reads the
-     `X-Session-Key` the gateway's MCP client sends (the lenient resolver), while core's
-     deny reads the strict resolver (`require_strict_session_key`). A channel agent's
-     key is injected by the gateway, so both refuse it, and an unresolvable caller is
-     let through by both; but the header is not a documented App Kit contract. Before `channel.py` drops its
-     row, `/api/app-tools/call` should hand the app a gateway-verified caller kind (or
-     the manifest should be able to declare a per-operation channel-agent deny).
+   - **a verified caller on the forwarded call.** The channel-agent hold, here and in
+     the wheel copy, reads the `X-Session-Key` the gateway's MCP client sends (the
+     lenient resolver, which tries the strict resolver's sources in the same order
+     before its ancestor walk, so it names a channel agent whenever the strict one
+     does). The header is not a documented App Kit contract: `/api/app-tools/call`
+     handing the app a gateway-verified caller kind, or a manifest-declared
+     per-operation channel-agent deny, would make it one.
    - the tool's title row in `data/mcp_tool_titles.json` stays until the app leaves
      (a remote session's whole-server grant is expanded from it).
 3. **Dashboard internals.** The five state objects above (chat slot status, the
@@ -197,7 +193,9 @@ the built-in. None is an App Kit seam (gap 3).
    every existing policy working.
 5. **Adoption is refused while core names the app.** `builtin_adoption_checks.core_named_apps()`
    collects `TOOL_APPS` and `webhook_sources`, and `pinned_tree_refusal` answers
-   `pinned_feature_unsupported` for any app in it. Gaps 2 and 4 must close before an
+   `pinned_feature_unsupported` for any app in it. `TOOL_APPS` stops naming this app
+   with the Kiro Crew change in gap 2; the webhook source (gap 4) still does. Gaps 2
+   and 4 must close before an
    adoption pin for this app can apply.
 6. **The skill ships twice while the built-in does.** Kiro Crew copies
    `builtin_skills/ops-mission-control/` into the data home at every start
@@ -271,7 +269,7 @@ gave the built-in page. Strings are `t()` over `ui/i18n/<locale>.json` for all
 | `website/playwright/ops-mission-control.spec.ts` | `ui/e2e/ops-mission-control.spec.ts` | The page is `/apps/ops-mission-control` and the record is not a built-in. Runs against a live, isolated gateway with this repository installed (`npm run e2e`); CI does not boot one. |
 | `test_webhook_governance.py`, `test_notify_clip.py`, `test_github_issues_stderr_excerpts.py`, `test_masked_leaf_staged_publish.py` (carved out of core tests into the built-in's `tests/` by KiroCrew #30061) | `tests/`, same names | Module paths are `backend.*`; the staged-publish case covers this app's two leaves only. |
 | `website/src/test/bootRequests.test.ts`'s Ops Mission Control row (moved to `settingsStaleTime.test.ts` by #30061) | `ui/tests/settingsStaleTime.test.ts` | Reads `ui/src/SettingsPanel.tsx`. |
-| (none) | `tests/test_agent_tool_route.py` | The `agentTools` declaration parses on the host and matches the core tool (description, arguments, enums, allowlist, query rule, body cap, title, result cap, channel hold); every refusal lands before a handler; every allowed call answers as its direct route; the body is sanitized and redacted; a channel agent cannot arm the rotation and keeps the reads; a validated call reaches the route through the host's `/api/app-tools/call` and `RouteRegistry`. |
+| (none) | `tests/test_agent_tool_route.py` | The `agentTools` declaration parses on the host and matches the built-in's tool, core or wheel copy (description, arguments, enums, allowlist, query rule, body cap, title, result cap, channel hold); every refusal lands before a handler; every allowed call answers as its direct route; the body is sanitized and redacted; a channel agent cannot arm the rotation and keeps the reads; a validated call reaches the route through the host's `/api/app-tools/call` and `RouteRegistry`. |
 | (none) | `tests/test_no_host_imports.py`, `tests/test_host_stand_ins.py`, `tests/test_manifest_contract.py` | The pinned host table and that each name exists on the pinned Kiro Crew; every stand-in and seam failing closed; manifest parity with the built-in, the bundle's imports, the hook loading through the gateway's module loader, no hardcoded model id, an adoptable tree. |
 
 Core tests that use `ops-mission-control` only as a sample app name, slot key
@@ -290,6 +288,7 @@ Every change to the built-in since `55439d8770`, up to KiroCrew `main` `6d07df11
 | #31314 | an incident chat exit in an app pop-out goes to the main window | the host's (UI table above) |
 | #30061 | core tests that pinned the app moved into its `tests/` | ported (Tests table) |
 | #31715, #32660 | spec wording about the core tool | `docs/spec.md` is the spec at `6d07df11cf` |
+| `fix/adoption-omc-tools` | the wheel copy serves `ops_mission_control_api` on the `agentTools` seam and the core rows go | already served here; the tests that read the core rows (`test_agent_api_tool.py`, the SOP facts, the parity class) now read this copy's own allowlist, the declared schema through the host's field engine, or the wheel copy where the core tool is gone |
 
 ## What Kiro Crew keeps doing
 

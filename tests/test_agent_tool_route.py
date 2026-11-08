@@ -4,10 +4,12 @@ The declaration (``agentTools``) is what the gateway lists and checks a call aga
 ``POST /agent-tools`` (``backend/http_routes/agent_tool.py``) is what decides the call.
 Three properties are pinned:
 
-- **Parity with the built-in's tool.** While Kiro Crew still ships the core tool of
-  the same name, the declaration carries its description, its argument names, enums
-  and bounds, the route carries its allowlist and its query rule, and the channel hold
-  is the operation core holds. An agent sees one tool either way.
+- **Parity with the built-in's tool.** Against a Kiro Crew that still ships the core
+  tool of the same name, the declaration carries its description, its argument names,
+  enums and bounds, the route carries its allowlist and its query rule, and the channel
+  hold is the operation core holds. Against one whose wheel copy serves the tool on the
+  same seam, the declaration and the route's rules equal the wheel copy's. An agent sees
+  one tool either way.
 - **Every refusal lands before any handler runs**, and an allowed call is answered by
   the route's own handler, with the decoded body sanitized and redacted first.
 - **The gateway's own path reaches it.** A call validated against the declaration by
@@ -101,16 +103,34 @@ class TestTheDeclaration(unittest.TestCase):
         self.assertEqual(props["body_json"]["maxLength"], agent_tool.MAX_BODY_CHARS)
 
 
-class TestParityWithTheCoreTool(unittest.TestCase):
-    """The core tool of the same name, as the pinned Kiro Crew still ships it."""
+class TestParityWithTheBuiltInTool(unittest.TestCase):
+    """The tool of the same name as the pinned Kiro Crew ships it for the built-in.
 
-    def _core(self) -> dict:
+    An older Kiro Crew runs it as a core tool (``mcp_tools/apps.py``, its validation
+    schema and the ``channel.py`` hold); a newer one serves it from the wheel copy on
+    the same ``agentTools`` seam as here. Either way an agent must see one tool.
+    """
+
+    @staticmethod
+    def _core() -> dict | None:
         from kiro_crew.mcp_tools.apps import schemas
 
-        return next(s for s in schemas() if s["name"] == agent_tool.TOOL_NAME)
+        return next((s for s in schemas() if s["name"] == agent_tool.TOOL_NAME), None)
+
+    @staticmethod
+    def _wheel_declared() -> dict:
+        import kiro_crew
+
+        wheel = Path(kiro_crew.__file__).parent / "apps" / "builtins" / "ops_mission_control"
+        manifest = json.loads((wheel / "app.json").read_text(encoding="utf-8"))
+        (tool,) = manifest["agentTools"]["tools"]
+        return tool
 
     def test_description_arguments_and_enums_match(self) -> None:
         core, mine = self._core(), _declared()
+        if core is None:
+            self.assertEqual(mine, self._wheel_declared())
+            return
         self.assertEqual(mine["description"], core["description"])
         self.assertEqual(mine["inputSchema"]["required"], core["inputSchema"]["required"])
         core_props = core["inputSchema"]["properties"]
@@ -122,18 +142,29 @@ class TestParityWithTheCoreTool(unittest.TestCase):
                 self.assertEqual(my_props[arg]["description"], prop["description"])
                 self.assertEqual(my_props[arg].get("enum"), prop.get("enum"))
 
-    def test_the_allowlist_and_the_query_rule_match(self) -> None:
-        from kiro_crew.validation_parts import app_schemas
+    def test_the_allowlist_the_query_rule_and_the_channel_hold_match(self) -> None:
+        if self._core() is not None:
+            from kiro_crew.channel import CHANNEL_AGENT_BLOCKED_DISPATCH_OPERATION as held
+            from kiro_crew.validation_parts import app_schemas
 
-        self.assertEqual(agent_tool.ALLOWED_CALLS, app_schemas.OPS_MISSION_CONTROL_ALLOWED_CALLS)
-        self.assertEqual(agent_tool.QUERY_RE.pattern, app_schemas._OMC_QUERY_RE.pattern)
-        self.assertEqual(agent_tool.MAX_BODY_CHARS, app_schemas._OMC_MAX_BODY)
+            self.assertEqual(
+                agent_tool.ALLOWED_CALLS, app_schemas.OPS_MISSION_CONTROL_ALLOWED_CALLS
+            )
+            self.assertEqual(agent_tool.QUERY_RE.pattern, app_schemas._OMC_QUERY_RE.pattern)
+            self.assertEqual(agent_tool.MAX_BODY_CHARS, app_schemas._OMC_MAX_BODY)
+            self.assertEqual(held[0], agent_tool.TOOL_NAME)
+            self.assertEqual(agent_tool.CHANNEL_HELD_OPERATIONS, frozenset({(held[1], held[2])}))
+            return
+        from kiro_crew.apps.builtins.ops_mission_control.backend.http_routes import (
+            agent_tool as wheel,
+        )
 
-    def test_the_channel_hold_is_the_operation_core_holds(self) -> None:
-        from kiro_crew.channel import CHANNEL_AGENT_BLOCKED_DISPATCH_OPERATION as held
-
-        self.assertEqual(held[0], agent_tool.TOOL_NAME)
-        self.assertEqual(agent_tool.CHANNEL_HELD_OPERATIONS, frozenset({(held[1], held[2])}))
+        self.assertEqual(agent_tool.ALLOWED_CALLS, wheel.ALLOWED_CALLS)
+        self.assertEqual(agent_tool.QUERY_RE.pattern, wheel.QUERY_RE.pattern)
+        self.assertEqual(agent_tool.MAX_QUERY_CHARS, wheel.MAX_QUERY_CHARS)
+        self.assertEqual(agent_tool.MAX_BODY_CHARS, wheel.MAX_BODY_CHARS)
+        self.assertEqual(agent_tool.CHANNEL_HELD_OPERATIONS, wheel.CHANNEL_HELD_OPERATIONS)
+        self.assertEqual(agent_tool.SESSION_KEY_HEADER, wheel.SESSION_KEY_HEADER)
 
     def test_the_title_is_the_cores(self) -> None:
         import kiro_crew
@@ -145,13 +176,16 @@ class TestParityWithTheCoreTool(unittest.TestCase):
         )
         self.assertEqual(_declared()["title"], titles["kirocrew-core"][agent_tool.TOOL_NAME])
 
-    def test_the_result_cap_is_the_cores(self) -> None:
-        import inspect
-
-        from kiro_crew.mcp_tools import apps
-
-        self.assertIn("_omc_cap = 60_000", inspect.getsource(apps.ops_mission_control_api))
+    def test_the_result_cap_is_the_built_ins(self) -> None:
         self.assertEqual(_declared()["maxResultChars"], 60_000)
+        if self._core() is not None:
+            import inspect
+
+            from kiro_crew.mcp_tools import apps
+
+            self.assertIn("_omc_cap = 60_000", inspect.getsource(apps.ops_mission_control_api))
+        else:
+            self.assertEqual(self._wheel_declared()["maxResultChars"], 60_000)
 
 
 class TestTheRoute(unittest.IsolatedAsyncioTestCase):
