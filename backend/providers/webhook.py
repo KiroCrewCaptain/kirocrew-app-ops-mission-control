@@ -41,7 +41,7 @@ from ..secrets import (
     has_secrets,
 )
 from .._host import APP_NAME as SOURCE_OPS_MISSION_CONTROL
-from .._host import source_refusal
+from .._host import source_refusal, webhook_source
 
 logger = logging.getLogger(__name__)
 
@@ -346,8 +346,10 @@ def enqueue(raw_body: bytes, signature: str) -> tuple[bool, str]:
     """Verify and queue a delivery. Returns ``(accepted, detail)``."""
     # The ``webhooks`` governance scope names the sources that may deliver; in an
     # enterprise build none may until a policy names one (RFC enterprise edition,
-    # Red "Webhooks by source").
-    refusal = source_refusal(SOURCE_OPS_MISSION_CONTROL)
+    # Red "Webhooks by source"). The gateway's ``ctx.webhook_source`` answers under
+    # this app's name when it has the seam; an older gateway is asked by name.
+    seam = webhook_source()
+    refusal = seam.refusal() if seam is not None else source_refusal(SOURCE_OPS_MISSION_CONTROL)
     if refusal:
         return False, refusal
     if not provider_enabled(PROVIDER_ID):
