@@ -10,7 +10,7 @@ compounding knowledge ledger, and proposes an action. Read-only by default.
 The whole app is meant to leave this repository intact: the package under
 `apps/builtins/ops_mission_control/` and the UI under `website/src/apps/ops-mission-control/`.
 Kiro Crew core does not import either. What the app needs from the core it imports from
-the core: the `webhooks` governance gate (`webhook_sources.source_refusal`), the
+the core: the `webhooks` governance gate (`ctx.webhook_source`, or `webhook_sources.source_refusal` on an older gateway), the
 notification bus, the redactor, the grapheme-safe cut and the hidden-leaf staging. The
 app's tests of those pins live in its own `tests/` (`test_webhook_governance.py`,
 `test_notify_clip.py`, `test_github_issues_stderr_excerpts.py`,
@@ -33,8 +33,10 @@ shrink. Each row is deleted in the change that removes what it names:
   the GET/POST dispatcher over its allowlist and the per-operation channel deny.
   `apps.builtin_adoption_checks.core_named_apps` reads `TOOL_APPS`, so until then the
   app is not adopted from its own repository.
-* **The `ops-mission-control` webhook source id** in `webhook_sources.py`: the core's
-  governance vocabulary, which a policy names and an app may not choose for itself.
+* **The webhook source is the app's own.** `app.json` declares
+  `permissions.webhookSource`, so a level-8 gateway governs the ingress under the app's
+  name, `ops-mission-control`, the id existing policies already name, and no core
+  constant names it (KiroCrew `app-kit-platform.md` section 39).
 * **The sandbox leaf tables** (`sandbox_leaves.py`, `sandbox_aliases.py`,
   `security/paths_lists.py`) that hide the secret store, hold the autonomy ceiling
   read-only and write-protect the rotation schedule and the incident index.

@@ -106,7 +106,7 @@ one away. `register_routes` reports any missing name through `ctx.health`.
 | `kiro_crew.atomic_write.atomic_write`, `kiro_crew.owner_only_files.{ensure_directory, owner_only_opener_for}` | every store write and the owner-only data directory (`store.py:62`, `ledger.py:47-48`, `ledger_index.py:47`, `providers/__init__.py:23`) | no write | a public file helper in the SDK (atomic owner-only publish, owner-only directory) |
 | `kiro_crew.security.iter_credential_matches` | the credential scan of the ledger before a push to the team remote (`ledger_sync.py:641`; the built-in moved from `get_credential_patterns` to this linear scan in KiroCrew #31445) | no push | a findings call on the scrub seam (`ctx.scrub.findings(text)`: what would be removed, without the text) |
 | `kiro_crew.validation.sanitize_json_values` | the hidden-character pass over the decoded `body_json` of an agent tool call, before the redaction pass (the core tool's `mcp_tools/apps.py:685`) | an agent call with a body answers 503 `host_unsupported`; nothing is dispatched | the hidden-character sanitizer on the scrub seam (`ctx.scrub.sanitize(value)`) |
-| `kiro_crew.webhook_sources.source_refusal` and `SOURCE_OPS_MISSION_CONTROL` | the `webhooks` governance scope asked before a signed delivery is verified (`providers/webhook.py:43`, `:349`) | every delivery is refused ("webhooks governance unavailable ... (fail-closed)"); the source id is now the app's own name, the same string | a generic per-app webhook source in the governance scope, keyed on the app's name instead of a core constant (gap 4) |
+| `kiro_crew.webhook_sources.source_refusal` | the `webhooks` governance scope asked before a signed delivery is verified, on a gateway without `ctx.webhook_source` (`providers/webhook.py`, `enqueue`) | every delivery is refused ("webhooks governance unavailable ... (fail-closed)"); the source id is the app's own name, the same string | `ctx.webhook_source` (App Kit level 8), asked first; this row stays only for gateways below it (gap 4) |
 | `kiro_crew.platform.admission.{evaluate_admission, load_admission_policy, seed_default_policy}` | signed admission of a provider companion package (`companion.py:62-66`) | no companion is loaded | admission of an app's own entry-point group on the context |
 | `kiro_crew.apps.manager.is_app_enabled` | the notification push gate (`notify_out.py:77`, `:292`) | no notification | none once every push comes from a served route (they all do here); an `enabled` read on the context otherwise |
 | `kiro_crew.notifications.bus.{NotificationPayload, NotificationValidationError}` | the in-process push onto the local notification bus (`notify_out.py:79`) | no notification | an app-scoped notification producer on the context over the manifest's declared channels (gap 3) |
@@ -187,16 +187,17 @@ the built-in. None is an App Kit seam (gap 3).
    over its declared channels, and `ctx.cron` with an async listing of the app's
    own jobs and the store-unreadable refusal (its current synchronous listing
    refuses on the event loop and has no such refusal).
-4. **Webhook source.** `webhook_sources.py:10`, `:32` and the governance catalog
-   (`platform/governance_parts/catalog.py:183`) name this app as a source. The
-   source id is the app's name, so a generic rule keyed on the app name keeps
-   every existing policy working.
+4. **Webhook source.** `app.json` declares `permissions.webhookSource`, so a level-8
+   Kiro Crew governs the ingress under the app's name through `ctx.webhook_source`
+   (KiroCrew `app-kit-platform.md` section 39) and names no app in core;
+   `providers/webhook.py` asks it first (`_host.webhook_source`) and asks
+   `source_refusal` by name only on an older gateway. The source id is the app's name,
+   so every existing policy keeps working.
 5. **Adoption is refused while core names the app.** `builtin_adoption_checks.core_named_apps()`
-   collects `TOOL_APPS` and `webhook_sources`, and `pinned_tree_refusal` answers
-   `pinned_feature_unsupported` for any app in it. `TOOL_APPS` stops naming this app
-   with the Kiro Crew change in gap 2; the webhook source (gap 4) still does. Gaps 2
-   and 4 must close before an
-   adoption pin for this app can apply.
+   collects the `SOURCE_*` constants of `webhook_sources`, and `pinned_tree_refusal`
+   answers `pinned_feature_unsupported` for any app in it. With gap 4 closed on a
+   level-8 Kiro Crew those are only the core's own ids, so this app is no longer refused
+   there; an adoption pin for it needs `--min-sdk-level 8`.
 6. **The skill ships twice while the built-in does.** Kiro Crew copies
    `builtin_skills/ops-mission-control/` into the data home at every start
    (`apps/bridges_skills.py:72`, `:176`); this copy links its own at

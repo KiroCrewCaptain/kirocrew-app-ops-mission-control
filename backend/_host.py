@@ -17,6 +17,11 @@ comes through this file, in three kinds:
      :func:`redact_via_context`. With no scrubber every non-empty string is masked;
    - ``ctx.embed`` (level 1): the shared embedder, as :func:`embed_fn`. Without it
      the ledger has no vectors and recall is by fingerprint and keyword only;
+   - ``ctx.webhook_source`` (level 8, present because ``app.json`` declares
+     ``permissions.webhookSource``): the ``webhooks`` governance answer for the
+     signal webhook under this app's own name, as :func:`webhook_source`. A
+     gateway without it is asked through ``source_refusal`` (kind 2) under the
+     same name;
    - ``ctx.data_dir``: the app's data directory, as :func:`app_data_dir`;
    - ``ctx.sdk_level``: reported by :func:`sdk_level` and in ``ctx.health``.
 
@@ -110,6 +115,17 @@ def _owner_denied() -> web.Response:
     return web.json_response(
         {"error": "owner authorization required", "code": "owner_only"}, status=403
     )
+
+
+def webhook_source() -> Any:
+    """The bound context's ``webhook_source`` seam, or ``None`` when the gateway lacks it.
+
+    Present on a level-8 gateway for an app whose manifest declares
+    ``permissions.webhookSource``. Its ``refusal()`` is blocking, like
+    ``source_refusal``, so the caller runs off the event loop.
+    """
+    seam = getattr(_ctx, "webhook_source", None)
+    return seam if callable(getattr(seam, "refusal", None)) else None
 
 
 async def require_owner(request: web.Request, operation: str) -> web.StreamResponse | None:
