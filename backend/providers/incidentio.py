@@ -533,7 +533,6 @@ def roster(now: datetime | None = None) -> dict[str, Any]:
     on every check, so it comes back as an ``error`` the board can surface. Never raises:
     ``rotation.describe`` backs the board's main poll.
     """
-    global _roster_cache
     if not (provider_enabled(PROVIDER_ID) and has_secrets(PROVIDER_ID, _REQUIRED_SECRETS)):
         return {}
     # Clamped like every other string the cache keeps: it is part of the key and is echoed
