@@ -7,10 +7,12 @@ full payload in the data-home root -- sandbox-visible and same-uid writable -- f
 length of the write, and a crash there leaves the same bytes behind at an unmasked name.
 
 The gateway's own auth stores already publish through the masked ``auth-store-staging``
-directory. These tests pin the same for this app's two hidden file leaves, the provider
-secret store and the policy ceiling, which it writes through the host's
-``publish_through_auth_store_staging`` (``backend/_host.py``). Each writer's temp, and any orphan a failed publish could
-leave, must live inside the masked staging directory and nowhere else.
+directory. These tests pin the same for this app's two hidden file leaves, the built-in's
+provider secret store (kept as the backup of the store in the masked ``secrets/`` data
+directory, and rewritten with it) and the policy ceiling, which it writes through the
+host's ``publish_through_auth_store_staging`` (``backend/_host.py``). Each writer's temp,
+and any orphan a failed publish could leave, must live inside a masked directory: the
+staging directory, or for the live store its own declared ``secrets/`` directory.
 """
 
 from __future__ import annotations
@@ -53,8 +55,20 @@ def temp_dirs(monkeypatch):
 def _ops_secret_write():
     from backend import secrets
 
+    backup = secrets.legacy_secrets_path()
+    if not backup.exists():
+        backup.write_text("{}", encoding="utf-8")
     secrets.KeystoneFileBackend().put("pagerduty", "token", "pd-secret-value")
-    return secrets.secrets_path(), "pd-secret-value"
+    return backup, "pd-secret-value"
+
+
+def _masked_store_dirs(writer: str) -> set[Path]:
+    """Directories other than the staging one a writer may stage in: masked as a whole."""
+    if writer != "ops-mission-control-secrets":
+        return set()
+    from backend import secrets
+
+    return {secrets.secrets_path().parent}
 
 
 def _ops_policy_write():
@@ -84,8 +98,9 @@ def test_hidden_leaf_temp_is_staged_only_under_the_masked_directory(writer, crew
 
     staging = crew_home / _AUTH_STORE_STAGING_LEAF
     assert temp_dirs, "atomic_write staged nothing; the recorder is not wired to the writer"
+    assert staging in temp_dirs, f"{writer} did not publish the hidden leaf through staging"
     for d in temp_dirs:
-        assert d == staging, (
+        assert d == staging or d in _masked_store_dirs(writer), (
             f"{writer} staged a temp in {d}, not in the masked {staging}: a same-uid sandboxed "
             "agent can read or link(2) that temp for the length of the write"
         )

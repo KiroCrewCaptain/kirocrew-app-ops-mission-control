@@ -11,13 +11,23 @@ For a local-first agent with no control plane of its own, that maps onto:
 ambient credential chain (profile / role / instance role). The app never accepts,
 stores, or transmits an AWS access key — "IAM roles over keys" applied directly.
 
-**Third-party tokens live on the keystone floor.** They go in
-``<crew_home>/ops_mission_control_secrets.json``, whose filename is registered in
-``security._CREW_SECRET_LEAVES``. That places it on the shared read+write
-sensitive-path floor, so the AGENT'S OWN file tools and shell cannot read or write
-it — the same mechanism that makes the governance ceiling un-disableable. The
-dashboard PUT handler is the only writer and opens the path directly (it does not
-route through the agent gate), so the operator's Settings UI still works.
+**Third-party tokens live in a masked directory of this app's data.** They go in
+``<data dir>/secrets/secrets.json``. ``app.json`` declares ``secrets/`` in
+``credentialMasks`` (a directory entry, App Kit level 8), so every agent sandbox hides
+the whole directory, including the temp an atomic rewrite stages beside the store, and
+refuses hard links to what is in it. The dashboard PUT handler is the only writer and
+opens the path directly (it does not route through the agent gate), so the operator's
+Settings UI still works.
+
+**The built-in's store is carried over once and kept.** The built-in kept the tokens at
+``<data home>/ops_mission_control_secrets.json``, which Kiro Crew's own leaf tables
+mask. The first access with no store in the data directory copies that file's bytes
+there verbatim (owner-only, under the store's lock), and the data-home file is left
+exactly as it was: it is the backup, still masked by Kiro Crew, and what a one-release
+downgrade to the built-in reads. Once the data-directory store exists it is the store
+every lookup reads, and every save or revoke also rewrites the backup to the same
+content while it exists, so a revoked token leaves no copy on disk and a downgrade
+reads the current tokens.
 
 Why not ``config.json``? Because Kiro Crew serves an app's ``data/config.json``
 over ``/api/apps/<name>/config`` **without session auth** — a documented behavior
@@ -44,14 +54,29 @@ from typing import Any, Protocol
 
 from ._host import platform_compat
 from .models import CorruptDocumentError
-from ._host import config_dir, publish_through_auth_store_staging, sel
+from ._host import (
+    app_data_dir,
+    atomic_write,
+    config_dir,
+    ensure_directory,
+    publish_through_auth_store_staging,
+    sel,
+)
 
 logger = logging.getLogger(__name__)
 
-#: Filename on the crew home. MUST stay in sync with the entry added to
-#: ``security._CREW_SECRET_LEAVES`` — the test suite asserts the two agree, so a
-#: rename cannot silently drop the keystone protection.
-SECRETS_FILENAME = "ops_mission_control_secrets.json"
+#: The directory under the data directory that holds the store. MUST stay equal to the
+#: ``credentialMasks`` directory entry in ``app.json`` (``"secrets/"``): the test suite
+#: asserts the two agree, so a rename cannot silently drop the sandbox mask.
+SECRETS_DIRNAME = "secrets"
+
+#: The store's filename inside :data:`SECRETS_DIRNAME`.
+SECRETS_FILENAME = "secrets.json"
+
+#: The built-in's store at the data-home root, read once to carry its tokens over. MUST
+#: stay in ``security._CREW_SECRET_LEAVES``: Kiro Crew keeps masking it because it stays
+#: on disk as the backup.
+LEGACY_SECRETS_FILENAME = "ops_mission_control_secrets.json"
 
 #: Value returned to callers in place of a stored secret. Secrets are write-only
 #: over the API: the UI shows whether a field is set, never what it is.
@@ -107,8 +132,13 @@ _TOKEN_PATTERNS: tuple[re.Pattern[str], ...] = (
 
 
 def secrets_path() -> Path:
-    """Absolute path to the keystone secret file (honors ``KIROCREW_HOME``)."""
-    return config_dir() / SECRETS_FILENAME
+    """Absolute path to the provider-token store in this app's masked data directory."""
+    return app_data_dir() / SECRETS_DIRNAME / SECRETS_FILENAME
+
+
+def legacy_secrets_path() -> Path:
+    """The built-in's store at the data-home root (honors ``KIROCREW_HOME``)."""
+    return config_dir() / LEGACY_SECRETS_FILENAME
 
 
 def redact_tokens(text: str) -> str:
@@ -161,7 +191,8 @@ class _SecretLock:
         self._fd: int | None = None
 
     def __enter__(self) -> "_SecretLock":
-        self._lock_path.parent.mkdir(parents=True, exist_ok=True)
+        # Owner-only inside the data home (the store's directory is created here first).
+        ensure_directory(self._lock_path.parent)
         self._fd = platform_compat.open_create_or_existing(str(self._lock_path), os.O_RDWR, 0o600)
         platform_compat.acquire_lock(self._fd, exclusive=True)
         return self
@@ -176,9 +207,9 @@ class _SecretLock:
 
 
 class KeystoneFileBackend:
-    """Default backend: one owner-only JSON file on the keystone floor."""
+    """Default backend: one owner-only JSON file in the app's masked data directory."""
 
-    def __init__(self, path: Path | None = None) -> None:
+    def __init__(self, path: Path | None = None, legacy_path: Path | None = None) -> None:
         # An EXPLICIT path is pinned (that is the point of passing one); otherwise
         # the location is resolved per access via ``self._path``. Snapshotting
         # ``secrets_path()`` here instead would freeze the data home as it was at
@@ -189,12 +220,80 @@ class KeystoneFileBackend:
         # test had written one, which is the exact failure mode a fail-closed test
         # exists to catch.
         self._pinned_path = path
+        # The built-in's store to carry over. With a pinned *path* only an explicit
+        # *legacy_path* is carried, so a pinned test store never reads the live home.
+        self._pinned_legacy = legacy_path
 
     # -- internals ---------------------------------------------------------
 
     @property
     def _path(self) -> Path:
         return self._pinned_path if self._pinned_path is not None else secrets_path()
+
+    @property
+    def _legacy_path(self) -> Path | None:
+        if self._pinned_path is not None:
+            return self._pinned_legacy
+        return legacy_secrets_path()
+
+    def _carry_legacy_store_locked(self) -> None:
+        """Copy the built-in's store into the data directory once. Caller holds the lock.
+
+        Nothing happens when the data-directory store exists (whatever it holds) or the
+        built-in's does not, so it is safe to call before every access. The bytes are
+        copied verbatim, so a store the built-in could not read is not "repaired" into
+        an empty one: the same refusals apply to the copy. The built-in's file is never
+        modified or removed. An ``OSError`` reading or writing propagates, and nothing
+        is published at the data-directory path, so the next access tries again.
+        """
+        path = self._path
+        if os.path.lexists(path):
+            return
+        legacy = self._legacy_path
+        if legacy is None:
+            return
+        try:
+            payload = legacy.read_bytes()
+        except FileNotFoundError:
+            return
+        ensure_directory(path.parent)
+        # Owner-only before any byte lands, and staged inside the masked directory.
+        atomic_write(path, payload, restrict_to_owner=True)
+        logger.info(
+            "ops-mission-control: provider store copied into the app's data directory; "
+            "the data-home copy is kept as a backup"
+        )
+
+    def _carry_legacy_store(self) -> None:
+        """:meth:`_carry_legacy_store_locked` under the store's lock, skipped when done."""
+        if os.path.lexists(self._path):
+            return
+        legacy = self._legacy_path
+        if legacy is None or not os.path.lexists(legacy):
+            return
+        with self._lock():
+            self._carry_legacy_store_locked()
+
+    def _lookup_path(self) -> Path:
+        """The file a LOOKUP reads: the data-directory store, after the carry-over.
+
+        A carry-over that fails (a transient EACCES, a full disk) must not make every
+        provider read as unconfigured while the built-in's tokens are still on disk, so
+        the lookup reads the built-in's file in place and the next access retries.
+        """
+        try:
+            self._carry_legacy_store()
+        except OSError:
+            legacy = self._legacy_path
+            # Fixed literal, no content: the traceback names the operation only.
+            logger.warning(  # nosemgrep: python-logger-credential-disclosure
+                "ops-mission-control: could not copy the provider store into the app's "
+                "data directory; reading the data-home copy",
+                exc_info=True,
+            )
+            if legacy is not None:
+                return legacy
+        return self._path
 
     @staticmethod
     def _coerce(raw: Any, *, strict: bool = False) -> dict[str, dict[str, str]]:
@@ -252,7 +351,7 @@ class KeystoneFileBackend:
         stops, and nothing else would prompt an operator to look.
         """
         try:
-            raw = json.loads(self._path.read_text(encoding="utf-8"))
+            raw = json.loads(self._lookup_path().read_text(encoding="utf-8"))
         except FileNotFoundError:
             return {}
         except (OSError, json.JSONDecodeError, UnicodeDecodeError):
@@ -284,7 +383,7 @@ class KeystoneFileBackend:
         caller that must tell "not configured" from "cannot tell" asks here.
         """
         try:
-            raw = json.loads(self._path.read_text(encoding="utf-8"))
+            raw = json.loads(self._lookup_path().read_text(encoding="utf-8"))
         except FileNotFoundError:
             return False
         except (OSError, json.JSONDecodeError, UnicodeDecodeError):
@@ -325,7 +424,12 @@ class KeystoneFileBackend:
         document on it. What debugging loses is repaid in the message: the
         parser's own line/column are folded into the text, which is the part a
         log actually renders.
+
+        Called with the lock held, so it carries the built-in's store over first: a
+        mutation never publishes over a data directory that has not received it yet,
+        which would drop every token the built-in stored.
         """
+        self._carry_legacy_store_locked()
         try:
             raw = json.loads(self._path.read_text(encoding="utf-8"))
         except FileNotFoundError:
@@ -372,12 +476,36 @@ class KeystoneFileBackend:
         # already-locked-down store — every stored provider token — on one
         # transient lockdown failure.
         #
-        # Staged in the masked auth-store staging directory, not beside the
-        # store: this file is a hidden leaf masked by its exact name, so a
-        # sibling temp would hold every provider token at a name no sandbox
-        # mask covers for the length of the write, and a crash would leave it
-        # there.
-        publish_through_auth_store_staging(self._path, payload)
+        # Staged beside the store, which is safe because the mask covers the whole
+        # ``secrets/`` directory: the temp is hidden from every agent sandbox for the
+        # length of the write, and a crash leaves it there, still masked.
+        ensure_directory(self._path.parent)
+        atomic_write(self._path, payload, restrict_to_owner=True)
+        self._mirror_backup_locked(payload)
+
+    def _mirror_backup_locked(self, payload: str) -> None:
+        """Rewrite the built-in's store to *payload* while it exists. Caller holds the lock.
+
+        It is never created here. Staged in Kiro Crew's masked auth-store staging
+        directory, because that file is masked by its exact name and a temp beside it
+        would not be. A failure propagates after the data-directory store was written,
+        so the caller reports it and a retry rewrites both.
+        """
+        legacy = self._legacy_path
+        if legacy is None or not os.path.lexists(legacy):
+            return
+        publish_through_auth_store_staging(legacy, payload)
+
+    def _backup_holds(self, provider_id: str) -> bool:
+        """Whether the built-in's store still lists *provider_id* (a lenient read)."""
+        legacy = self._legacy_path
+        if legacy is None:
+            return False
+        try:
+            raw = json.loads(legacy.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            return False
+        return isinstance(raw, dict) and provider_id in raw
 
     # -- SecretBackend -----------------------------------------------------
 
@@ -405,10 +533,16 @@ class KeystoneFileBackend:
         # absent, so this returned False and the audit logged ``not_found`` — telling
         # the operator there was nothing to revoke while the live token was still on
         # disk and still working. A raise is the honest answer.
+        #
+        # A revoke whose backup rewrite failed left the token in the backup only; a retry
+        # finds nothing to remove here and still clears it there.
         with self._lock():
             data = self._read_for_update()
             if provider_id not in data:
-                return False
+                if not self._backup_holds(provider_id):
+                    return False
+                self._mirror_backup_locked(json.dumps(data, indent=2, sort_keys=True))
+                return True
             del data[provider_id]
             self._write(data)
         return True
