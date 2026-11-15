@@ -17,7 +17,7 @@ comes through this file, in three kinds:
      :func:`redact_via_context`. With no scrubber every non-empty string is masked;
    - ``ctx.embed`` (level 1): the shared embedder, as :func:`embed_fn`. Without it
      the ledger has no vectors and recall is by fingerprint and keyword only;
-   - ``ctx.webhook_source`` (level 8, present because ``app.json`` declares
+   - ``ctx.webhook_source`` (level 7, present because ``app.json`` declares
      ``permissions.webhookSource``): the ``webhooks`` governance answer for the
      signal webhook under this app's own name, as :func:`webhook_source`. A
      gateway without it is asked through ``source_refusal`` (kind 2) under the
@@ -120,7 +120,7 @@ def _owner_denied() -> web.Response:
 def webhook_source() -> Any:
     """The bound context's ``webhook_source`` seam, or ``None`` when the gateway lacks it.
 
-    Present on a level-8 gateway for an app whose manifest declares
+    Present on a level-7 gateway for an app whose manifest declares
     ``permissions.webhookSource``. Its ``refusal()`` is blocking, like
     ``source_refusal``, so the caller runs off the event loop.
     """

@@ -345,7 +345,7 @@ def signals_from_payload(payload: dict[str, Any]) -> list[Signal]:
 def enqueue(raw_body: bytes, signature: str) -> tuple[bool, str]:
     """Verify and queue a delivery. Returns ``(accepted, detail)``."""
     # The ``webhooks`` governance scope names the sources that may deliver; in an
-    # enterprise build none may until a policy names one (RFC enterprise edition,
+    # LTS build none may until a policy names one (RFC LTS edition,
     # Red "Webhooks by source"). The gateway's ``ctx.webhook_source`` answers under
     # this app's name when it has the seam; an older gateway is asked by name.
     seam = webhook_source()
