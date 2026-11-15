@@ -20,10 +20,10 @@ KiroCrew `main` `55439d8770`:
 - the app's own core tests, `test/test_omc_ledger_sync_coverage.py` and
   `test/test_ops_mission_control_sop_facts.py`;
 - the module spec, `docs/system-specs/modules/ops-mission-control.md`, now
-  `docs/spec.md` (as on KiroCrew `main` `6d07df11cf`, unchanged: it records the
+  `docs/spec.md` (as on KiroCrew `main` `af94fac51f`, unchanged: it records the
   built-in's design, and the paths it names are the built-in's).
 
-The wheel copy's changes since, up to KiroCrew `main` `6d07df11cf`, are ported (see
+The wheel copy's changes since, up to KiroCrew `main` `af94fac51f`, are ported (see
 [Synced with the wheel copy](#synced-with-the-wheel-copy)), and the pinned test
 dependency is that commit. Paths with a line number below refer to `55439d8770`. A **gap** is something
 the built-in gets from Kiro Crew that an external app has no public way to get
@@ -106,7 +106,7 @@ one away. `register_routes` reports any missing name through `ctx.health`.
 | `kiro_crew.atomic_write.atomic_write`, `kiro_crew.owner_only_files.{ensure_directory, owner_only_opener_for}` | every store write and the owner-only data directory (`store.py:62`, `ledger.py:47-48`, `ledger_index.py:47`, `providers/__init__.py:23`) | no write | a public file helper in the SDK (atomic owner-only publish, owner-only directory) |
 | `kiro_crew.security.iter_credential_matches` | the credential scan of the ledger before a push to the team remote (`ledger_sync.py:641`; the built-in moved from `get_credential_patterns` to this linear scan in KiroCrew #31445) | no push | a findings call on the scrub seam (`ctx.scrub.findings(text)`: what would be removed, without the text) |
 | `kiro_crew.validation.sanitize_json_values` | the hidden-character pass over the decoded `body_json` of an agent tool call, before the redaction pass (the core tool's `mcp_tools/apps.py:685`) | an agent call with a body answers 503 `host_unsupported`; nothing is dispatched | the hidden-character sanitizer on the scrub seam (`ctx.scrub.sanitize(value)`) |
-| `kiro_crew.webhook_sources.source_refusal` | the `webhooks` governance scope asked before a signed delivery is verified, on a gateway without `ctx.webhook_source` (`providers/webhook.py`, `enqueue`) | every delivery is refused ("webhooks governance unavailable ... (fail-closed)"); the source id is the app's own name, the same string | `ctx.webhook_source` (App Kit level 8), asked first; this row stays only for gateways below it (gap 4) |
+| `kiro_crew.webhook_sources.source_refusal` | the `webhooks` governance scope asked before a signed delivery is verified, on a gateway without `ctx.webhook_source` (`providers/webhook.py`, `enqueue`) | every delivery is refused ("webhooks governance unavailable ... (fail-closed)"); the source id is the app's own name, the same string | `ctx.webhook_source` (App Kit level 7), asked first; this row stays only for gateways below it (gap 4) |
 | `kiro_crew.platform.admission.{evaluate_admission, load_admission_policy, seed_default_policy}` | signed admission of a provider companion package (`companion.py:62-66`) | no companion is loaded | admission of an app's own entry-point group on the context |
 | `kiro_crew.apps.manager.is_app_enabled` | the notification push gate (`notify_out.py:77`, `:292`) | no notification | none once every push comes from a served route (they all do here); an `enabled` read on the context otherwise |
 | `kiro_crew.notifications.bus.{NotificationPayload, NotificationValidationError}` | the in-process push onto the local notification bus (`notify_out.py:79`) | no notification | an app-scoped notification producer on the context over the manifest's declared channels (gap 3) |
@@ -150,26 +150,18 @@ the built-in. None is an App Kit seam (gap 3).
    written against a real host. The policy ceiling is a READONLY leaf (the agent
    may read it, never write it), which a mask does not express, so it needs its
    own seam.
-2. **The agent's API tool: the core rows go, two questions stay.** This copy declares
-   `ops_mission_control_api` in `agentTools` and serves it at `POST /agent-tools`
-   with the allowlist and the channel-agent hold. Kiro Crew's branch
-   `fix/adoption-omc-tools` puts the wheel copy on the same seam (its `app.json`
-   declares the same block; `backend.hooks.routes` registers `POST /agent-tools` alone
-   with the route registry, because the wheel copy mounts its other routes on the
-   gateway router, which `/api/app-tools/call` never dispatches to) and deletes the core
-   rows: the `TOOL_APPS` row, descriptor and handler, the validation schema and
-   allowlist, the internal-secret admission and the `channel.py` operation deny. Once
-   that lands, the declared tool is the one every agent calls, built-in and adopted
-   records alike. `tests/test_agent_tool_route.py` checks parity against either host:
-   the core tool where it still exists, the wheel copy's declaration and rules where
-   it does not. Still open in Kiro Crew:
-   - **listing an adopted app's tools.** `apps/app_agent_tools.py` lists only a
-     first-party app, read from its SHIPPED `app.json`, and after adoption the wheel
-     copy is released (`execution.shipped_builtin_app_root` returns `None`), so an
-     adopted record lists nothing: the SOPs and crons would lose their only API path.
-     Kiro Crew needs a decision (app-kit-platform.md section 30.1 calls it a
-     maintainer's) on listing an adopted former built-in's declared tools, for example
-     from the tree at its adoption pin, or behind a per-call approval.
+2. **The agent's API tool: the core rows are gone, one question stays.** This copy
+   declares `ops_mission_control_api` in `agentTools` and serves it at
+   `POST /agent-tools` with the allowlist and the channel-agent hold. KiroCrew #33542 put
+   the wheel copy on the same seam (its `app.json` declares the same block, route
+   included) and deleted the core rows: the `TOOL_APPS` row, descriptor and handler, the
+   validation schema and allowlist, the internal-secret admission and the `channel.py`
+   operation deny. The declared tool is the one every agent calls, built-in and adopted
+   records alike: KiroCrew #33141 keeps an adopted former built-in's tools listed, read
+   from the adopted record's own `app.json`, while its block equals the wheel copy's.
+   `tests/test_agent_tool_route.py` checks parity against either host: the core tool
+   where it still exists, the wheel copy's declaration and rules where it does not.
+   Still open in Kiro Crew:
    - **a verified caller on the forwarded call.** The channel-agent hold, here and in
      the wheel copy, reads the `X-Session-Key` the gateway's MCP client sends (the
      lenient resolver, which tries the strict resolver's sources in the same order
@@ -187,17 +179,18 @@ the built-in. None is an App Kit seam (gap 3).
    over its declared channels, and `ctx.cron` with an async listing of the app's
    own jobs and the store-unreadable refusal (its current synchronous listing
    refuses on the event loop and has no such refusal).
-4. **Webhook source.** `app.json` declares `permissions.webhookSource`, so a level-8
-   Kiro Crew governs the ingress under the app's name through `ctx.webhook_source`
-   (KiroCrew `app-kit-platform.md` section 39) and names no app in core;
+4. **Webhook source (closed by KiroCrew #36359).** `app.json` declares
+   `permissions.webhookSource`, so a Kiro Crew at App Kit level 7 or above governs the
+   ingress under the app's name through `ctx.webhook_source` (KiroCrew
+   `app-kit-platform.md` section 42) and names no app in core;
    `providers/webhook.py` asks it first (`_host.webhook_source`) and asks
    `source_refusal` by name only on an older gateway. The source id is the app's name,
    so every existing policy keeps working.
-5. **Adoption is refused while core names the app.** `builtin_adoption_checks.core_named_apps()`
-   collects the `SOURCE_*` constants of `webhook_sources`, and `pinned_tree_refusal`
-   answers `pinned_feature_unsupported` for any app in it. With gap 4 closed on a
-   level-8 Kiro Crew those are only the core's own ids, so this app is no longer refused
-   there; an adoption pin for it needs `--min-sdk-level 8`.
+5. **Adoption was refused while core named the app (closed by KiroCrew #36359).**
+   `builtin_adoption_checks.core_named_apps()` collects the `SOURCE_*` constants of
+   `webhook_sources`, and `pinned_tree_refusal` answers `pinned_feature_unsupported` for
+   any app in it. Those are now only the core's own ids, so this app is no longer refused
+   there.
 6. **The skill ships twice while the built-in does.** Kiro Crew copies
    `builtin_skills/ops-mission-control/` into the data home at every start
    (`apps/bridges_skills.py:72`, `:176`); this copy links its own at
@@ -280,7 +273,7 @@ follow the gaps above.
 
 ## Synced with the wheel copy
 
-Every change to the built-in since `55439d8770`, up to KiroCrew `main` `6d07df11cf`:
+Every change to the built-in since `55439d8770`, up to KiroCrew `main` `af94fac51f`:
 
 | KiroCrew | Built-in change | Here |
 |---|---|---|
@@ -290,6 +283,14 @@ Every change to the built-in since `55439d8770`, up to KiroCrew `main` `6d07df11
 | #30061 | core tests that pinned the app moved into its `tests/` | ported (Tests table) |
 | #31715, #32660 | spec wording about the core tool | `docs/spec.md` is the spec at `6d07df11cf` |
 | `fix/adoption-omc-tools` | the wheel copy serves `ops_mission_control_api` on the `agentTools` seam and the core rows go | already served here; the tests that read the core rows (`test_agent_api_tool.py`, the SOP facts, the parity class) now read this copy's own allowlist, the declared schema through the host's field engine, or the wheel copy where the core tool is gone |
+| #33542 | `fix/adoption-omc-tools` as merged: the core tool's module (`mcp_tools/apps.py`) is gone | the parity class reads the wheel copy when that module is absent |
+| #13428 | the board's on-call card also shows incident.io's roster of this operator's shifts, and Settings refuses an unknown incident.io user id | `backend/providers/incidentio.py`, `backend/rotation.py`, `backend/http_routes/configuration.py`, `ui/src/OpsMissionControlPage.tsx`, `ui/src/SettingsPanel.tsx`, `ui/src/api.ts`, the ten strings in every locale, `ui/tests/OpsMissionControlRoster.test.tsx` and the backend cases |
+| #33131, #33673 | Poll & claim, the Settings Save buttons and the Signals actions use `aria-disabled` plus a guard while busy, so a keyboard user keeps focus | `ui/src/OpsMissionControlPage.tsx`, `ui/src/SettingsPanel.tsx`, `ui/src/SignalsPanel.tsx`, the focus cases |
+| #34193 | dispatch and reconcile stay paused while no signal source is configured, and the rotation-check cron always calls `POST /rotation/arm` | `backend/registry.py`, `backend/rotation.py`, `backend/secrets.py`, `backend/providers/__init__.py`, `backend/http_routes/configuration.py`, the `rotation-check` prompt and SOP, the arming cases |
+| #26064 | the Spanish and Portuguese strings that were English passthroughs are translated | `ui/i18n/es.json`, `ui/i18n/pt.json` |
+| #32970 | the Enterprise Edition is the LTS Edition | the webhook comment and `tests/test_webhook_governance.py` |
+| #36359 | the wheel copy declares `permissions.webhookSource` and asks `app_source_refusal` under its own name | already declared here (`ctx.webhook_source`, else `source_refusal` by name); `tests/fixtures/builtin-app.json` is the merged manifest |
+| #31863, #33394 | the redaction fixtures use synthetic GitHub tokens (an AWS key ID is an identifier the host's scrubber keeps visible since #29423); the lockdown-order tests ignore other threads | the matching tests here, including `tests/test_host_stand_ins.py` and `tests/test_agent_tool_route.py` |
 
 ## What Kiro Crew keeps doing
 

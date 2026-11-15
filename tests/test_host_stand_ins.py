@@ -75,9 +75,13 @@ class TestTheContextSeams(unittest.IsolatedAsyncioTestCase):
             _host.redact_via_context("x")
 
     def test_the_hosts_scrubber_removes_a_credential(self) -> None:
+        from kiro_crew.testing.synthetic_credentials import github_classic
+
         _host.bind(make_ctx())
-        text = "token AKIAIOSFODNN7EXAMPLE leaked"
-        self.assertNotIn("AKIAIOSFODNN7EXAMPLE", _host.redact_via_context(text))
+        # A GitHub token with a valid checksum: since Kiro Crew #29423 the host's scrubber
+        # keeps an AWS key ID visible as an identifier.
+        token = github_classic(seed=7)
+        self.assertNotIn(token, _host.redact_via_context(f"token {token} leaked"))
 
     def test_the_audit_row_goes_to_the_seam_with_the_apps_verb(self) -> None:
         record = mock.MagicMock()
