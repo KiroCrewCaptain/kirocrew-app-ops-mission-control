@@ -1,12 +1,13 @@
 """Security tests for Ops Mission Control.
 
-These lock in the properties that are expensive to retrofit: the provider tokens
-must sit on the keystone floor so the agent cannot read or overwrite its own
-credentials, and token shapes must be redacted before any provider payload reaches
-a model prompt, a transcript, or Slack.
+These lock in the properties that are expensive to retrofit: the built-in's provider
+token store, which stays on disk as the backup, must stay on the keystone floor so the
+agent cannot read or overwrite it (``test_secret_store_location.py`` pins the masked
+directory the live store moved to), and token shapes must be redacted before any
+provider payload reaches a model prompt, a transcript, or Slack.
 
 The keystone test deliberately asserts against the real ``security`` module rather
-than a mock. A rename of ``SECRETS_FILENAME`` that forgot to update
+than a mock. A rename of ``LEGACY_SECRETS_FILENAME`` that forgot to update
 ``_CREW_SECRET_LEAVES`` would silently drop the protection with no other symptom,
 so this is the test that catches it.
 """
@@ -28,10 +29,10 @@ from backend import secrets
 class TestKeystoneProtection(unittest.TestCase):
     def test_filename_is_registered_on_the_secret_floor(self):
         """The two lists must agree — see the module docstring."""
-        self.assertIn(secrets.SECRETS_FILENAME, security._CREW_SECRET_LEAVES)
+        self.assertIn(secrets.LEGACY_SECRETS_FILENAME, security._CREW_SECRET_LEAVES)
 
     def _secret_path(self) -> str:
-        return os.path.expanduser(f"~/.kiro/crew/{secrets.SECRETS_FILENAME}")
+        return os.path.expanduser(f"~/.kiro/crew/{secrets.LEGACY_SECRETS_FILENAME}")
 
     def test_agent_file_tools_cannot_touch_it(self):
         """``is_sensitive_path`` is the shared read+write gate for agent tools."""
@@ -49,7 +50,9 @@ class TestKeystoneProtection(unittest.TestCase):
         """
         for prefix in security._CREW_HOME_PREFIXES:
             with self.subTest(prefix=prefix):
-                path = os.path.join(os.path.expanduser("~"), prefix, secrets.SECRETS_FILENAME)
+                path = os.path.join(
+                    os.path.expanduser("~"), prefix, secrets.LEGACY_SECRETS_FILENAME
+                )
                 self.assertTrue(security.is_sensitive_path(path))
 
 

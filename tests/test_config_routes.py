@@ -541,28 +541,23 @@ class TestManifestCrons(unittest.TestCase):
         names = {c.name for c in self._manifest().crons}
         self.assertEqual(names, {"dispatch", "reconcile", "rotation-check", "ledger-hygiene"})
 
-    def test_secrets_live_outside_the_app_dir_so_uninstall_cannot_reach_them(self):
+    def test_secrets_live_in_the_masked_data_directory_that_uninstall_keeps(self):
         """Pins the credential-retention boundary, which is easy to get wrong twice.
 
-        The keystone secret file MUST sit at the crew-home root: that is what puts it
-        on ``security._CREW_SECRET_LEAVES`` so the agent's own tools cannot read or
-        overwrite it. The consequence is that ``uninstall_app``, which removes
-        ``apps/<name>/``, cannot delete it — a PagerDuty/Datadog token outlives an
-        uninstall.
+        The store sits in ``<data dir>/secrets/``, which the manifest declares in
+        ``credentialMasks`` so no agent sandbox can read it. A default uninstall keeps
+        ``data/``, so a PagerDuty/Datadog token outlives an uninstall; the built-in's
+        data-home copy, kept as the backup, outlives even a purge. Settings says so next
+        to the Revoke button, which is the only control that removes both.
 
-        That is the right trade (moving it under the app dir would hand the agent its
-        own credentials, and silently wiping tokens would break uninstall/reinstall),
-        but it must be DISCLOSED rather than discovered. Settings says so next to the
-        Revoke button, which is the only control that changes it.
-
-        If a future change moves the file under the app dir, this test fails — and the
-        keystone protection would have been quietly lost.
+        If a future change moves the store out of the declared directory, this test
+        fails, and the sandbox mask would have been quietly lost.
         """
         import os
-        import tempfile
 
-        from backend.secrets import secrets_path
+        from backend.secrets import SECRETS_DIRNAME, secrets_path
 
+        manifest = json.loads((Path(__file__).resolve().parents[1] / "app.json").read_text("utf-8"))
         prev = os.environ.get("KIROCREW_HOME")
         with tempfile.TemporaryDirectory() as tmp:
             os.environ["KIROCREW_HOME"] = tmp
@@ -571,17 +566,16 @@ class TestManifestCrons(unittest.TestCase):
                 # (`RUNNER~1`) while `secrets_path()` yields the long form (`runneradmin`), so
                 # comparing a resolved path against an unresolved one raises in `relative_to`.
                 home = Path(tmp).resolve()
-                path = secrets_path().resolve()
+                parts = secrets_path().resolve().relative_to(home).parts
                 self.assertEqual(
-                    path.parent,
-                    home,
-                    "secrets must sit at the crew-home root for the keystone floor",
+                    parts[:4],
+                    ("apps", "ops-mission-control", "data", SECRETS_DIRNAME),
+                    "secrets must sit in the data directory, which a default uninstall keeps",
                 )
-                self.assertNotIn(
-                    "apps",
-                    path.relative_to(home).parts,
-                    "secrets must NOT live under apps/ — uninstall would delete them "
-                    "and the sensitive-path floor would no longer cover them",
+                self.assertIn(
+                    f"{SECRETS_DIRNAME}/",
+                    manifest["credentialMasks"],
+                    "the store's directory must be the declared mask directory",
                 )
             finally:
                 if prev is None:

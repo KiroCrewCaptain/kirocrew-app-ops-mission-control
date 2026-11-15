@@ -32,7 +32,8 @@ never a change here, and no Kiro Crew API was invented for this port.
 
 ## What carried over unchanged
 
-- `app.json` `name` (`ops-mission-control`), `version` (`0.1.0`), `author`,
+- `app.json` `name` (`ops-mission-control`), `version` (`0.1.0` at the port, `0.1.1`
+  since this copy's first release; the adoption pin bumps the wheel copy to match), `author`,
   `permissions` (the app API, `/api/chat*`, `/api/approvals*`, the `slots` and
   `notification` events, `network`, `storage`, `cron`, and the six MCP tools),
   `notifications` (the three channels), `dependencies`, `platform`,
@@ -54,10 +55,9 @@ never a change here, and no Kiro Crew API was invented for this port.
   routes.
 - Where data lives: incidents, the ledger, the vector-index cursor and the
   non-secret config under `<data home>/apps/ops-mission-control/data/` (the
-  built-in's `app_data_dir`, and the directory adoption keeps); the provider
-  secrets in `<data home>/ops_mission_control_secrets.json` and the autonomy
-  ceiling in `<data home>/ops_mission_control_policy.json`, at the same names, so
-  Kiro Crew's existing masks still cover them (gap 1).
+  built-in's `app_data_dir`, and the directory adoption keeps); the autonomy
+  ceiling in `<data home>/ops_mission_control_policy.json`, at the same name, so
+  Kiro Crew's existing masks still cover it. The provider secrets moved (gap 1).
 - The skill and SOPs, byte for byte except the SOP path in each cron prompt.
 - The page's markup, class strings and behaviour (`ui/src/`), and its strings in
   all 12 dashboard locales.
@@ -86,6 +86,7 @@ never a change here, and no Kiro Crew API was invented for this port.
 | App Store copy keys in the dashboard catalogs (`website/src/components/appstore/appManifest.ts:304-318`) | `l10n` block in `app.json` for the 11 non-English locales | The listing copy travels with the app. It is the `apps.opsMissionControl.manifest` subtree of `ui/i18n/<locale>.json`, kept equal by a test. |
 | No `license`, no `minKiroCrewVersion` | `"license": "Apache-2.0"`, `"minKiroCrewVersion": "0.13.0"` | The repository's licence. 0.13.0 is the first release line with App Kit level 1 (structural route records, `ctx.require_owner`, `ctx.embed`, `APP_SDK_LEVEL = 1`); a 0.12 route registry skips every record that is not its own `AppRoute`, so every route would answer 404 there. |
 | The core MCP tool `ops_mission_control_api` (`mcp_tools/apps.py:117-146`, `:660-707`), its allowlist and query rule (`validation_parts/app_schemas.py:38-90`) and its channel deny of `POST /rotation/arm` (`channel.py:126-145`, enforced in `mcp_core_parts/governance.py`) | `app.json` `agentTools` declares the same tool (name, title, description, argument names, enums, `maxLength` 512 and 32,768, `maxResultChars` 60,000), and `POST /agent-tools` (`backend/http_routes/agent_tool.py`) serves it: the allowlist, the query rule, GET-only query and POST-only body, the JSON-object body walked through the host's hidden-character sanitizer then the redaction pass (`routes._scrub_inbound`), the hold of `POST /rotation/arm` for a caller whose forwarded `X-Session-Key` is a `channel:` key (403 `channel_agent_refused`, audited), then the route's own served handler over an `AgentCall` view of the request | App Kit seam level 2 (KiroCrew #32660). On a Kiro Crew that still ships the core tool, the core keeps the name and serves every call (a declared name a core tool has is never the app's), so nothing changes for an agent; on one whose wheel copy serves it on the same seam, the declared tool is every agent's. `tests/test_agent_tool_route.py` pins parity with whichever the host ships and drives a validated call through the host's own `/api/app-tools/call` handler and `RouteRegistry`. See gap 2 for what Kiro Crew still has to change |
+| Provider tokens in `<data home>/ops_mission_control_secrets.json`, published through the host's auth-store staging (`secrets.py:47-48`) | `<data dir>/secrets/secrets.json`, declared `"credentialMasks": ["secrets/"]`, written beside itself inside the masked directory; the built-in's file carried over once and kept equal as the backup | The owner ruling on kirodotdev/KiroCrew#26967 (2026-11-13, item 2) moves the store into the app's own data directory under `credentialMasks`, so no core row has to name it once the built-in is gone (gap 1) |
 | A refused host function surfaced as aiohttp's 500 | `503 {"code": "host_unsupported"}` from the record adapter | A route that reaches a missing host function is refused by its stand-in before any write; the page and the agent can tell that from a crash. |
 
 ## Host functions with no App Kit seam: resolved from the gateway, fail closed
@@ -129,27 +130,26 @@ the built-in. None is an App Kit seam (gap 3).
 
 ## Remaining gaps
 
-1. **Core names the app's two secret files.** The provider secrets and the
-   autonomy ceiling stay at `ops_mission_control_secrets.json` and
-   `ops_mission_control_policy.json` because Kiro Crew's sandbox and sensitive
-   path floor name exactly those leaves (`sandbox_leaves.py:407-408`,
-   `security/paths_lists.py:605`, `:619`, `:837`, `:864`, `:952`, `:1041`,
-   `sandbox_aliases.py:122`, `:149`, `security_posture.py:1206`, `:1282-1283`,
-   `security_posture_sinks_delivery.py:25`, `:614-680`, `aws_consent.py:30`).
-   That is what keeps a token unreadable to the agent and the ceiling unwritable
-   by it. Moving them would drop that protection, so they must not move until
-   the store in the first row of the table above exists; removing those rows
-   from core first would expose them. The secret half has a seam in review:
-   `credentialMasks` (KiroCrew #32652, App Kit level 3, not merged) masks files
-   under the app's own `data/` only, so the store must first move to
-   `apps/ops-mission-control/data/` with a migration that keeps every token
-   (KiroCrew #32681, which moves the wheel copy and keeps the root name masked as a
-   retired leaf). This copy must then read the same new path, carry the same
-   migration for a record adopted from an older wheel, and declare
-   `"credentialMasks": ["secrets.json"]`; until #32652 merges none of that can be
-   written against a real host. The policy ceiling is a READONLY leaf (the agent
-   may read it, never write it), which a mask does not express, so it needs its
-   own seam.
+1. **Core names the app's policy ceiling; the token store has moved.** The provider
+   tokens live in `<data dir>/secrets/secrets.json`, and `app.json` declares
+   `"credentialMasks": ["secrets/"]` (KiroCrew #32652, and #36346 for a directory entry,
+   App Kit level 8), so every agent sandbox hides the whole directory, including the temp
+   an atomic rewrite stages beside the store, and refuses hard links into it. The
+   built-in kept them at `<data home>/ops_mission_control_secrets.json`, so the first
+   access with no store in the data directory copies that file's bytes there, under the
+   store's lock (`backend/secrets.py`, `tests/test_secret_store_location.py`). The
+   data-home file is kept: it is the backup a one-release downgrade reads, and every
+   save and revoke rewrites it to the store's content while it exists, so a revoked
+   token leaves no copy on disk. It is never created. Kiro Crew keeps masking that name
+   (`sandbox_leaves.py`, `security/paths_lists.py`, `sandbox_aliases.py`), which it
+   must do while the backup can be on disk (KiroCrew #32681 keeps it as a retired leaf).
+   One residual: Kiro Crew's agent file-tool gate reads only the shipped built-ins'
+   declarations (`app-kit-platform.md` section 37), so for an adopted record the live
+   store is fenced by the sandbox mask, as every installed app's credential file is; on
+   a host with no sandbox backend (Windows) the agent's file tools are not refused it,
+   while its unconfined shell could already read either copy. The autonomy ceiling stays
+   at `ops_mission_control_policy.json`: it is a READONLY leaf (the agent may read it,
+   never write it), which a mask does not express, so it needs its own seam.
 2. **The agent's API tool: the core rows are gone, one question stays.** This copy
    declares `ops_mission_control_api` in `agentTools` and serves it at
    `POST /agent-tools` with the allowlist and the channel-agent hold. KiroCrew #33542 put
@@ -191,11 +191,12 @@ the built-in. None is an App Kit seam (gap 3).
    `webhook_sources`, and `pinned_tree_refusal` answers `pinned_feature_unsupported` for
    any app in it. Those are now only the core's own ids, so this app is no longer refused
    there.
-6. **The skill ships twice while the built-in does.** Kiro Crew copies
-   `builtin_skills/ops-mission-control/` into the data home at every start
-   (`apps/bridges_skills.py:72`, `:176`); this copy links its own at
-   `skills/ops-mission-control/ops-mission-control/`. The release that adopts
-   this app must stop shipping the core copy.
+6. **The skill ships twice while the built-in does (closed by Kiro Crew's adoption).**
+   Kiro Crew copies `builtin_skills/ops-mission-control/` into the data home at every
+   start; this copy links its own at `skills/ops-mission-control/ops-mission-control/`.
+   For an adopted record Kiro Crew neither installs nor updates the core copy (its
+   `app: ops-mission-control` line names a released app) and its skill catalog hides one
+   already on disk (`app-kit-platform.md` section 33), so only this copy shows.
 7. **Execution trust.** A built-in's in-gateway Python is exempt from the
    third-party execution gate; this copy's hooks load only when the operator
    trusts it. Adoption writes that grant for an existing user's record.
@@ -296,9 +297,10 @@ Every change to the built-in since `55439d8770`, up to KiroCrew `main` `af94fac5
 
 The release that adds adoption still ships the built-in. A user's built-in
 record moves onto this repository at the commit Kiro Crew pins; a record that
-cannot move keeps running the built-in copy, unchanged. For this app the pin
-waits on gaps 2 and 4 (gap 5), and the core copy of the skill must stop
-shipping in that release (gap 6).
+cannot move keeps running the built-in copy, unchanged. Gaps 2 (the tool listing), 4,
+5 and 6 are closed in Kiro Crew, and the token store has moved (gap 1), so nothing
+in Kiro Crew holds the pin back. The tree declares a `credentialMasks` directory entry,
+so the pin needs `--min-sdk-level 8`: a host below it keeps the built-in.
 
 ## Release handoff: one commit for both pins
 
@@ -307,8 +309,8 @@ commit must be the ported tree.
 
 1. Call the full 40-hex SHA of this repository's `main` `C`
    (`git rev-parse HEAD`).
-2. In the Kiro Crew release PR that adds adoption, once gaps 2 and 4 are
-   closed, run `python3 scripts/adoption_pin.py compute <this URL> C` and add
+2. In the Kiro Crew release PR that adds adoption, run
+   `python3 scripts/adoption_pin.py compute <this URL> C --min-sdk-level 8` and add
    the row it prints to `src/kiro_crew/apps/adoption-pins.json`; then
    `python3 scripts/adoption_pin.py verify`.
 3. The KiroCrewApps row for `ops-mission-control` switches to `"type": "git"`,

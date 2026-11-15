@@ -5,9 +5,10 @@ pinned commit, with no consent dialog, so the tree must be something it can take
 over unchanged:
 
 - the same name, version, permissions, platform and ``defaultEnabled`` as the
-  built-in (``tests/fixtures/builtin-app.json`` is its manifest at the commit
-  this was ported from). A widened grant would be held back or force the app
-  off, and adoption refuses that;
+  built-in (``tests/fixtures/builtin-app.json`` is its manifest at the Kiro Crew
+  commit PORTING.md names, at the version Kiro Crew pins, which bumps the wheel
+  copy to match). A widened grant would be held back or force the app off, and
+  adoption refuses that;
 - the same crons (name, schedule, ``enabled``, ``silent``) and notification
   channels; a cron prompt differs only in where it finds its SOP, because the
   skill now ships in this tree;

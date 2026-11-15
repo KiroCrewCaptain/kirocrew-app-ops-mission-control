@@ -158,10 +158,13 @@ is for teams running several copies.
 
 - **Where your data lives:** incidents, the knowledge ledger and the app's
   settings are in `~/.kiro/crew/apps/ops-mission-control/data/` (under
-  `$KIROCREW_HOME` if you set it). Provider tokens are in
-  `~/.kiro/crew/ops_mission_control_secrets.json` and the autonomy settings in
-  `~/.kiro/crew/ops_mission_control_policy.json`, files the agent can never
-  change and, for the tokens, never read.
+  `$KIROCREW_HOME` if you set it). Provider tokens are in that folder's
+  `secrets/` folder, which the agent's sandbox hides, and the autonomy settings
+  in `~/.kiro/crew/ops_mission_control_policy.json`, which the agent can never
+  change. If you used Ops Mission Control before it moved to this repository,
+  your tokens are copied over the first time the app reads them, and
+  `~/.kiro/crew/ops_mission_control_secrets.json` is kept, equal to the new
+  copy, as a backup the agent can never read.
 - **What leaves your computer:** the app talks to the alarm services you connect,
   with your tokens. The alarm text and what the agent finds go to the same AI
   model as the rest of your Kiro Crew; tokens and other credentials are removed
