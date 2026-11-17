@@ -33,7 +33,8 @@ never a change here, and no Kiro Crew API was invented for this port.
 ## What carried over unchanged
 
 - `app.json` `name` (`ops-mission-control`), `version` (`0.1.0` at the port, `0.1.1`
-  since this copy's first release; the adoption pin bumps the wheel copy to match), `author`,
+  at this copy's first release, `0.1.2` since the sync up to KiroCrew `main` `2e2503671f`;
+  the adoption pin bumps the wheel copy to match), `author`,
   `permissions` (the app API, `/api/chat*`, `/api/approvals*`, the `slots` and
   `notification` events, `network`, `storage`, `cron`, and the six MCP tools),
   `notifications` (the three channels), `dependencies`, `platform`,
