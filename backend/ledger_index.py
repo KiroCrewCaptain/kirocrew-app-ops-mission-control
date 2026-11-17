@@ -41,7 +41,7 @@ import json
 import logging
 from typing import Any
 
-from . import ledger
+from . import _host, ledger
 from .models import LedgerEntry
 from ._host import app_data_dir, atomic_write, sel
 
@@ -146,6 +146,17 @@ def import_pending(store: Any, *, limit: int = MAX_PER_IMPORT) -> dict[str, int]
     cycle that asked for it.
     """
     result = {"scanned": 0, "written": 0, "skipped": 0}
+    # A provider that replaces Crew's memory takes no ledger episodes; Crew's own
+    # memory is left exactly as it is until it is switched back. A gateway that
+    # cannot answer the question gets no episodes either.
+    try:
+        writes_allowed = _host.host_name("memory_provider", "builtin_writes_allowed")
+        note_skip = _host.host_name("memory_provider", "note_skip")
+    except _host.HostUnavailable:
+        return result
+    if not writes_allowed(""):
+        note_skip("ops ledger episode import", "")
+        return result
     try:
         entries = ledger.read_entries()
     except Exception:  # noqa: BLE001 — a ledger fault is reported, never fatal here

@@ -15,7 +15,8 @@ stores, or transmits an AWS access key — "IAM roles over keys" applied directl
 ``<data dir>/secrets/secrets.json``. ``app.json`` declares ``secrets/`` in
 ``credentialMasks`` (a directory entry, App Kit level 8), so every agent sandbox hides
 the whole directory, including the temp an atomic rewrite stages beside the store, and
-refuses hard links to what is in it. The dashboard PUT handler is the only writer and
+refuses hard links to what is in it; from App Kit level 10 the agent's file tools refuse
+it too, with or without a sandbox. The dashboard PUT handler is the only writer and
 opens the path directly (it does not route through the agent gate), so the operator's
 Settings UI still works.
 

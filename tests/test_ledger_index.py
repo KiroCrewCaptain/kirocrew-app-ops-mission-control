@@ -364,6 +364,58 @@ class TestNeverFatal(_Env):
         self.assertEqual(store.backfill_calls, 0)
 
 
+class TestAProviderThatReplacesCrewsMemory(_Env):
+    """A memory provider that replaces Crew's memory takes no ledger episodes.
+
+    The host's ``memory_provider.resolver`` answers whether Crew's own memory may be
+    written; while a provider replaces it, the import writes nothing and moves no
+    cursor, so switching back finds Crew's memory exactly as it was. A gateway that
+    cannot answer gets nothing either.
+    """
+
+    _RESOLVER = "kiro_crew.memory_provider.resolver"
+
+    def test_the_default_host_lets_the_import_write(self) -> None:
+        self._seed(2)
+        result = ledger_index.import_pending(_FakeStore())
+        self.assertEqual(result["written"], 2)
+
+    def test_a_replacing_provider_gets_no_episode_and_no_cursor(self) -> None:
+        self._seed(3)
+        store = _FakeStore()
+        with (
+            mock.patch(f"{self._RESOLVER}.builtin_writes_allowed", return_value=False) as asked,
+            mock.patch(f"{self._RESOLVER}.note_skip") as noted,
+        ):
+            result = ledger_index.import_pending(store)
+        self.assertEqual(result, {"scanned": 0, "written": 0, "skipped": 0})
+        self.assertEqual(store.writes, [])
+        asked.assert_called_once_with("")
+        noted.assert_called_once_with("ops ledger episode import", "")
+        self.assertFalse(ledger_index._cursor_path().exists())
+
+    def test_switching_back_imports_what_was_held(self) -> None:
+        self._seed(3)
+        store = _FakeStore()
+        with mock.patch(f"{self._RESOLVER}.builtin_writes_allowed", return_value=False):
+            ledger_index.import_pending(store)
+        result = ledger_index.import_pending(store)
+        self.assertEqual(result["written"], 3)
+
+    def test_a_host_without_the_seam_imports_nothing_and_does_not_raise(self) -> None:
+        self._seed(2)
+        store = _FakeStore()
+        real = ledger_index._host._attr
+
+        def without_resolver(module_name: str, name: str) -> Any:
+            return None if module_name == self._RESOLVER else real(module_name, name)
+
+        with mock.patch.object(ledger_index._host, "_attr", side_effect=without_resolver):
+            result = ledger_index.import_pending(store)
+        self.assertEqual(result, {"scanned": 0, "written": 0, "skipped": 0})
+        self.assertEqual(store.writes, [])
+
+
 class TestSearch(_Env):
     def test_search_is_scoped_to_ledger_rows(self) -> None:
         """The index is shared with the rest of Kiro Crew; an ops query wants ops

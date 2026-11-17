@@ -323,7 +323,7 @@ class TestTheRoute(unittest.IsolatedAsyncioTestCase):
     async def test_a_ledger_post_through_the_tool_writes_no_credential(self) -> None:
         from backend import ledger
 
-        secret = "glpat-IOSFODNN7EXAMPLE"
+        secret = "glpat-" + "IOSFODNN7EXAMPLE1234"
         body = {"pattern": "assume-role denied", "fix": f"aws sts assume-role --key {secret}"}
         status, payload = await self._post(
             _call(method="POST", path="/ledger", body_json=json.dumps(body))

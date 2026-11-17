@@ -20,10 +20,10 @@ KiroCrew `main` `55439d8770`:
 - the app's own core tests, `test/test_omc_ledger_sync_coverage.py` and
   `test/test_ops_mission_control_sop_facts.py`;
 - the module spec, `docs/system-specs/modules/ops-mission-control.md`, now
-  `docs/spec.md` (as on KiroCrew `main` `af94fac51f`, unchanged: it records the
+  `docs/spec.md` (as on KiroCrew `main` `2e2503671f`, unchanged: it records the
   built-in's design, and the paths it names are the built-in's).
 
-The wheel copy's changes since, up to KiroCrew `main` `af94fac51f`, are ported (see
+The wheel copy's changes since, up to KiroCrew `main` `2e2503671f`, are ported (see
 [Synced with the wheel copy](#synced-with-the-wheel-copy)), and the pinned test
 dependency is that commit. Paths with a line number below refer to `55439d8770`. A **gap** is something
 the built-in gets from Kiro Crew that an external app has no public way to get
@@ -112,7 +112,7 @@ one away. `register_routes` reports any missing name through `ctx.health`.
 | `kiro_crew.apps.manager.is_app_enabled` | the notification push gate (`notify_out.py:77`, `:292`) | no notification | none once every push comes from a served route (they all do here); an `enabled` read on the context otherwise |
 | `kiro_crew.notifications.bus.{NotificationPayload, NotificationValidationError}` | the in-process push onto the local notification bus (`notify_out.py:79`) | no notification | an app-scoped notification producer on the context over the manifest's declared channels (gap 3) |
 | `kiro_crew.cron.CronStoreUnreadable` | the refusal a broken cron store raises during a rotation arm (`http_routes/configuration.py:37`) | never raised (no cron service is reached without the gateway state) | part of the cron seam in gap 3 |
-| `kiro_crew.vector_memory.VectorMemoryStore`, `kiro_crew.config.loader.KiroCrewConfig`, `kiro_crew.config.memory_sections.memory_writes_off_key`, `kiro_crew.embeddings.{PRIORITY_INTERACTIVE, EmbeddingWork, embedding_work}` | the ledger's projection into the host's memory store and semantic recall at dispatch (`dispatch.py:237-244`, `routes.py:235-237`) | no semantic recall and no indexing; fingerprint matches and hygiene run as before (the built-in's documented "no store" state) | an app-scoped vector index on the context (gap 9) |
+| `kiro_crew.vector_memory.VectorMemoryStore`, `kiro_crew.config.loader.KiroCrewConfig`, `kiro_crew.config.memory_sections.memory_writes_off_key`, `kiro_crew.memory_provider.resolver.{builtin_writes_allowed, note_skip}`, `kiro_crew.embeddings.{PRIORITY_INTERACTIVE, EmbeddingWork, embedding_work}` | the ledger's projection into the host's memory store and semantic recall at dispatch (`dispatch.py:237-244`, `routes.py:235-237`), and the projection's skip while a memory provider replaces Crew's memory (`ledger_index.import_pending`, since KiroCrew #37218) | no semantic recall and no indexing; fingerprint matches and hygiene run as before (the built-in's documented "no store" state) | an app-scoped vector index on the context (gap 9) |
 
 ## The gateway's dashboard state, read as the built-in read it
 
@@ -143,11 +143,12 @@ the built-in. None is an App Kit seam (gap 3).
    token leaves no copy on disk. It is never created. Kiro Crew keeps masking that name
    (`sandbox_leaves.py`, `security/paths_lists.py`, `sandbox_aliases.py`), which it
    must do while the backup can be on disk (KiroCrew #32681 keeps it as a retired leaf).
-   One residual: Kiro Crew's agent file-tool gate reads only the shipped built-ins'
-   declarations (`app-kit-platform.md` section 37), so for an adopted record the live
-   store is fenced by the sandbox mask, as every installed app's credential file is; on
-   a host with no sandbox backend (Windows) the agent's file tools are not refused it,
-   while its unconfined shell could already read either copy. The autonomy ceiling stays
+   From App Kit level 10 (kirodotdev/KiroCrew#37459) Kiro Crew's agent file-tool gate
+   also reads an installed app's declaration (`app-kit-platform.md` section 37), so the
+   agent's file tools refuse the live store of an adopted record as they refuse the
+   built-in's file, with or without a sandbox backend; that is why the pin needs level
+   10. Below it the store is fenced by the sandbox mask alone, as every installed app's
+   credential file was. The autonomy ceiling stays
    at `ops_mission_control_policy.json`: it is a READONLY leaf (the agent may read it,
    never write it), which a mask does not express, so it needs its own seam.
 2. **The agent's API tool: the core rows are gone, one question stays.** This copy
@@ -274,7 +275,7 @@ follow the gaps above.
 
 ## Synced with the wheel copy
 
-Every change to the built-in since `55439d8770`, up to KiroCrew `main` `af94fac51f`:
+Every change to the built-in since `55439d8770`, up to KiroCrew `main` `2e2503671f`:
 
 | KiroCrew | Built-in change | Here |
 |---|---|---|
@@ -292,6 +293,13 @@ Every change to the built-in since `55439d8770`, up to KiroCrew `main` `af94fac5
 | #32970 | the Enterprise Edition is the LTS Edition | the webhook comment and `tests/test_webhook_governance.py` |
 | #36359 | the wheel copy declares `permissions.webhookSource` and asks `app_source_refusal` under its own name | already declared here (`ctx.webhook_source`, else `source_refusal` by name); `tests/fixtures/builtin-app.json` is the merged manifest |
 | #31863, #33394 | the redaction fixtures use synthetic GitHub tokens (an AWS key ID is an identifier the host's scrubber keeps visible since #29423); the lockdown-order tests ignore other threads | the matching tests here, including `tests/test_host_stand_ins.py` and `tests/test_agent_tool_route.py` |
+| #37218 | the ledger's episode import into Crew's memory is skipped while a memory provider replaces Crew's memory (`memory_provider.resolver.builtin_writes_allowed`), with the resolver's skip log line | `backend/ledger_index.py` through `_host.host_name("memory_provider", ...)` at call time; a gateway without the resolver indexes nothing, as with no memory gate (host table above); `tests/test_ledger_index.py` covers the skip, the switch back and the missing resolver |
+| #38368 | the Japanese strings lose the source line breaks left inside sentences | `ui/i18n/ja.json` (45 strings); every locale's `apps.opsMissionControl.*` strings equal the dashboard catalogs at `2e2503671f` apart from `settingsPanel.credential_retention_note` (gap 1) |
+| #37469 | a `LedgerEntry.v` comment names the test that pins it | `backend/models.py` |
+| #37953 | the host's settings switch is a real button; the comment above the Instance switch says so | `ui/src/SettingsPanel.tsx` (comment only; the switch is the host's `Toggle`) |
+| #37408 | the host's scrubber masks a token by its published format and no longer by a looser pattern, so the fixtures use full-length synthetic tokens; `docs/spec.md` names what `redact` knows | the same fixtures in `tests/test_dispatch.py`, `tests/test_github_issues_stderr_excerpts.py`, `tests/test_providers.py`, `tests/test_routes.py`, `tests/test_security.py`, `tests/test_slack_out.py`, `tests/test_store_and_gate.py`, and the wheel copy's full-length token in `tests/test_agent_tool_route.py`; `docs/spec.md` |
+| #37597 | the truncation test pins the `gh` PATH probe | `tests/test_providers_adapters.py` |
+| #38037, #38040, #38041 | the test homes come from pytest's `tmp_path`, so a failing `setUp` leaves nothing for the core suite's temp-dir residue guard | not ported: test-only, and this repository runs no residue guard; its tests already isolate the data home (`tests/conftest.py`) |
 
 ## What Kiro Crew keeps doing
 
@@ -300,7 +308,9 @@ record moves onto this repository at the commit Kiro Crew pins; a record that
 cannot move keeps running the built-in copy, unchanged. Gaps 2 (the tool listing), 4,
 5 and 6 are closed in Kiro Crew, and the token store has moved (gap 1), so nothing
 in Kiro Crew holds the pin back. The tree declares a `credentialMasks` directory entry,
-so the pin needs `--min-sdk-level 8`: a host below it keeps the built-in.
+and the agent's file-tool gate fences it only from App Kit level 10
+(kirodotdev/KiroCrew#37459), so the pin needs `--min-sdk-level 10`: a host below it
+keeps the built-in.
 
 ## Release handoff: one commit for both pins
 
@@ -310,7 +320,7 @@ commit must be the ported tree.
 1. Call the full 40-hex SHA of this repository's `main` `C`
    (`git rev-parse HEAD`).
 2. In the Kiro Crew release PR that adds adoption, run
-   `python3 scripts/adoption_pin.py compute <this URL> C --min-sdk-level 8` and add
+   `python3 scripts/adoption_pin.py compute <this URL> C --min-sdk-level 10` and add
    the row it prints to `src/kiro_crew/apps/adoption-pins.json`; then
    `python3 scripts/adoption_pin.py verify`.
 3. The KiroCrewApps row for `ops-mission-control` switches to `"type": "git"`,
