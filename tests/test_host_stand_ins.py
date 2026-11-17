@@ -158,7 +158,13 @@ class TestEveryStandInRefuses(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(_host._STAND_INS["app_manager"]["is_app_enabled"]("ops-mission-control"))
 
     def test_the_optional_features_are_absent_not_faked(self) -> None:
-        for surface in ("vector_memory", "memory_config", "memory_sections", "embeddings"):
+        for surface in (
+            "vector_memory",
+            "memory_config",
+            "memory_sections",
+            "memory_provider",
+            "embeddings",
+        ):
             with self.subTest(surface=surface):
                 self.assertTrue(all(v is None for v in _host._STAND_INS[surface].values()))
         self.assertIsNone(_host._STAND_INS["notifications"]["NotificationPayload"])

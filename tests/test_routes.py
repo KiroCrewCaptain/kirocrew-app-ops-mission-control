@@ -23,6 +23,11 @@ from aiohttp import web
 
 from tests.harness import mount
 from backend import models, routes, store
+from kiro_crew.testing.synthetic_credentials import synth
+
+#: GitLab tokens in their published format (``glpat-`` and 20 or more characters).
+_PAT = "glpat-" + synth(20, seed=13)
+_PAT2 = "glpat-" + synth(20, seed=14)
 
 
 class TestRouteRegistration(unittest.IsolatedAsyncioTestCase):
@@ -830,7 +835,7 @@ class TestNeedsHumanNotifiesOnTheEdgeOnly(unittest.IsolatedAsyncioTestCase):
         from backend import models, store
 
         inc = self._claim()
-        leaked = "glpat-IOSFODNN7EXAMPLE"
+        leaked = _PAT
         status, _payload = await self._transition(
             inc.incident_id,
             models.STATUS_NEEDS_HUMAN,
@@ -937,7 +942,7 @@ class TestLedgerWritesAreRedacted(unittest.IsolatedAsyncioTestCase):
 
         from backend import ledger
 
-        secret = "glpat-IOSFODNN7EXAMPLE"
+        secret = _PAT
         app = web.Application()
         mount(app)
         async with TestClient(TestServer(app)) as client:
@@ -971,7 +976,7 @@ class TestLedgerWritesAreRedacted(unittest.IsolatedAsyncioTestCase):
         app = web.Application()
         mount(app)
         async with TestClient(TestServer(app)) as client:
-            for secret in ("glpat-IOSFODNN7EXAMPLE", "glpat-I44QH8DHBEXAMPLE"):
+            for secret in (_PAT, _PAT2):
                 resp = await client.post(
                     "/api/apps/ops-mission-control/ledger",
                     json={"pattern": "assume-role denied", "fix": f"key {secret}"},

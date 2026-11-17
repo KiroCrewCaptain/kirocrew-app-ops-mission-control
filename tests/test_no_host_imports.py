@@ -72,6 +72,10 @@ PINNED_HOST_FUNCTIONS: dict[str, tuple[str, tuple[str, ...]]] = {
     "vector_memory": ("kiro_crew.vector_memory", ("VectorMemoryStore",)),
     "memory_config": ("kiro_crew.config.loader", ("KiroCrewConfig",)),
     "memory_sections": ("kiro_crew.config.memory_sections", ("memory_writes_off_key",)),
+    "memory_provider": (
+        "kiro_crew.memory_provider.resolver",
+        ("builtin_writes_allowed", "note_skip"),
+    ),
     "embeddings": (
         "kiro_crew.embeddings",
         ("PRIORITY_INTERACTIVE", "EmbeddingWork", "embedding_work"),

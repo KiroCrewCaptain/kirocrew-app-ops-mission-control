@@ -292,6 +292,10 @@ HOST_FUNCTIONS: dict[str, tuple[str, tuple[str, ...]]] = {
         ("KiroCrewConfig",),
     ),
     "memory_sections": ("kiro_crew.config.memory_sections", ("memory_writes_off_key",)),
+    "memory_provider": (
+        "kiro_crew.memory_provider.resolver",
+        ("builtin_writes_allowed", "note_skip"),
+    ),
     "embeddings": (
         "kiro_crew.embeddings",
         ("PRIORITY_INTERACTIVE", "EmbeddingWork", "embedding_work"),
@@ -413,6 +417,7 @@ _STAND_INS: dict[str, dict[str, Any]] = {
     "vector_memory": {"VectorMemoryStore": None},
     "memory_config": {"KiroCrewConfig": None},
     "memory_sections": {"memory_writes_off_key": None},
+    "memory_provider": {"builtin_writes_allowed": None, "note_skip": None},
     "embeddings": {"PRIORITY_INTERACTIVE": None, "EmbeddingWork": None, "embedding_work": None},
 }
 
