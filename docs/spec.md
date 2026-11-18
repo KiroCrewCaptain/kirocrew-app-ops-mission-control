@@ -2425,7 +2425,10 @@ managed tools its jobs call:
 
 An investigation launched with `spawn_run` inherits the dispatch agent, which is all an
 investigation needs: its evidence is in the brief, and every app call is
-`ops_mission_control_api`. Neither agent has a shell, the web or a provider credential.
+`ops_mission_control_api`. The dispatch agent declares
+`toolsSettings.subagent.availableAgents: ["ops-mission-control-dispatch"]`, so the spawn
+gate refuses a child on any other agent, the owner's default included.
+Neither agent has a shell, the web or a provider credential.
 Neither ships `allowedTools`: no shipped agent pre-authorizes a tool. Each cron declares `approval_mode: "auto"` instead, so an unattended run's calls are approved after the deny rules and the governance ceiling, and the app's page names those jobs before the owner enables it.
 An install from before the agents existed keeps its jobs: the manifest bridge sees the
 `agent` field changed and re-applies it to each job, which moves the job's captured

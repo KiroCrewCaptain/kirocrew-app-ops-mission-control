@@ -289,6 +289,14 @@ class TestTheManifest(unittest.TestCase):
                 # Unattended: each call is approved after the deny rules and the ceiling.
                 self.assertEqual(cron.get("approval_mode"), "auto")
 
+    def test_the_dispatch_agent_can_only_spawn_itself(self) -> None:
+        """An auto-approved run that reads alert text must not start a child on a
+        wider agent, the owner's default included."""
+        spec = json.loads((APP_ROOT / "agents/dispatch.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            spec["toolsSettings"]["subagent"]["availableAgents"], [spec["name"]]
+        )
+
     def test_hooks_load_the_way_the_gateway_loads_them(self) -> None:
         """Through the gateway's own module loader: a synthetic package, relative imports."""
         from unittest import mock

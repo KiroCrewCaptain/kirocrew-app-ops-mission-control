@@ -10,5 +10,10 @@
     "@kirocrew-core/spawn_run",
     "@kirocrew-core/send_message"
   ],
+  "toolsSettings": {
+    "subagent": {
+      "availableAgents": ["ops-mission-control-dispatch"]
+    }
+  },
   "mcpServers": {}
 }
