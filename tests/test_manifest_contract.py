@@ -268,13 +268,32 @@ class TestTheManifest(unittest.TestCase):
                 module, _, attr = target.partition(":")
                 self.assertTrue(callable(getattr(importlib.import_module(module), attr)))
 
-    def test_declares_no_agent_or_mcp_server(self) -> None:
-        """The built-in declared none: its crons and investigations run on the host's agent."""
+    def test_declares_no_mcp_server(self) -> None:
+        """The built-in declares none, so neither does this copy."""
+        self.assertNotIn("mcpServers", _manifest())
+        self.assertNotIn("mcpServers", _builtin())
+
+    def test_every_cron_runs_on_one_of_the_apps_own_agents(self) -> None:
+        """A cron that names no agent would run on the owner's default agent, which a
+        host refuses for an app's job. The agents are the built-in's, by name."""
         manifest = _manifest()
-        for key in ("agents", "mcpServers"):
-            with self.subTest(field=key):
-                self.assertNotIn(key, manifest)
-                self.assertNotIn(key, _builtin())
+        self.assertEqual(manifest["agents"], _builtin()["agents"])
+        declared = {
+            json.loads((APP_ROOT / path).read_text(encoding="utf-8"))["name"]
+            for path in manifest["agents"]
+        }
+        self.assertEqual(declared, {"ops-mission-control-heartbeat", "ops-mission-control-dispatch"})
+        for cron in manifest["crons"]:
+            with self.subTest(cron=cron["name"]):
+                self.assertIn(cron.get("agent"), declared)
+
+    def test_the_dispatch_agent_can_only_spawn_itself(self) -> None:
+        """An unattended run that reads alert text must not start a child on a
+        wider agent, the owner's default included."""
+        spec = json.loads((APP_ROOT / "agents/dispatch.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            spec["toolsSettings"]["subagent"]["availableAgents"], [spec["name"]]
+        )
 
     def test_hooks_load_the_way_the_gateway_loads_them(self) -> None:
         """Through the gateway's own module loader: a synthetic package, relative imports."""

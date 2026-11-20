@@ -535,7 +535,9 @@ class TestManifestCrons(unittest.TestCase):
         return AppManifest.from_json_file(path)
 
     def test_manifest_is_valid(self):
-        self.assertEqual(self._manifest().validate(), [])
+        # With the app root, as install does.
+        root = Path(__file__).resolve().parents[1]
+        self.assertEqual(self._manifest().validate(app_root=root), [])
 
     def test_all_four_sops_have_a_cron(self):
         names = {c.name for c in self._manifest().crons}
