@@ -94,7 +94,6 @@
     {
       "name": "dispatch",
       "agent": "ops-mission-control-dispatch",
-      "approval_mode": "auto",
       "every": 120,
       "silent": true,
       "persistent_session": false,
@@ -104,7 +103,6 @@
     {
       "name": "reconcile",
       "agent": "ops-mission-control-heartbeat",
-      "approval_mode": "auto",
       "every": 900,
       "silent": true,
       "persistent_session": false,
@@ -114,7 +112,6 @@
     {
       "name": "rotation-check",
       "agent": "ops-mission-control-heartbeat",
-      "approval_mode": "auto",
       "every": 300,
       "silent": true,
       "persistent_session": false,
@@ -124,7 +121,6 @@
     {
       "name": "ledger-hygiene",
       "agent": "ops-mission-control-heartbeat",
-      "approval_mode": "auto",
       "cron_expr": "17 3 * * *",
       "silent": true,
       "persistent_session": false,

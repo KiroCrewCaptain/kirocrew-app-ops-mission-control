@@ -535,7 +535,7 @@ class TestManifestCrons(unittest.TestCase):
         return AppManifest.from_json_file(path)
 
     def test_manifest_is_valid(self):
-        # With the app root, as install does: an auto cron's agent is read from its spec.
+        # With the app root, as install does.
         root = Path(__file__).resolve().parents[1]
         self.assertEqual(self._manifest().validate(app_root=root), [])
 

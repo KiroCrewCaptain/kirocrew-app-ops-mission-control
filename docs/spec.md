@@ -2429,7 +2429,7 @@ investigation needs: its evidence is in the brief, and every app call is
 `toolsSettings.subagent.availableAgents: ["ops-mission-control-dispatch"]`, so the spawn
 gate refuses a child on any other agent, the owner's default included.
 Neither agent has a shell, the web or a provider credential.
-Neither ships `allowedTools`: no shipped agent pre-authorizes a tool. Each cron declares `approval_mode: "auto"` instead, so an unattended run's calls are approved after the deny rules and the governance ceiling, and the app's page names those jobs before the owner enables it.
+Neither ships `allowedTools`: no shipped agent pre-authorizes a tool. An unattended run's calls to `ops_mission_control_api` pass the host gate's `app-own-tools` row, because the job carries the app's stamp and runs one of the app's shipped agents. Its other calls that are not otherwise approved, such as `send_message` and `spawn_run`, ask as before, until the owner sets the job to auto on the Schedule page.
 An install from before the agents existed keeps its jobs: the manifest bridge sees the
 `agent` field changed and re-applies it to each job, which moves the job's captured
 template with it. Pinned by `test_every_cron_runs_on_one_of_the_apps_own_agents` in
